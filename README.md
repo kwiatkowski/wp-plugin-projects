@@ -108,5 +108,6 @@ czy użytkownik może edytować, logowanie / wylogowanie). Dodaje też skrót *P
 | `wp_plugin_projects/path` | `projects` | adres aplikacji |
 | `wp_plugin_projects/app_index` | `{web root}/projects/web/index.html` | plik index.html zbudowanej aplikacji |
 | `wp_plugin_projects/public_fields` | `domains, status, engine, version, theme` | pola publicznej listy |
+| `wp_plugin_projects/wordpress_branches` | `13` | ile ostatnich gałęzi WordPressa (≈ 5 lat) ma lista wersji w oknie projektu |
 
 Z MK Core plugin dokłada swoją kartę do widgetu „Informacje o serwisie”.

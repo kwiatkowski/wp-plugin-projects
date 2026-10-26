@@ -94,6 +94,47 @@ final class AppShell
         return $version ?: null;
     }
 
+    /**
+     * WordPress releases of about the last five years, newest first – the newest of each branch (7.1.3, 7.0.5, 6.9.4 …).
+     * WordPress ships about three branches a year: the last 13 (in 2026 back to 5.9, January 2022) – filter
+     * `wp_plugin_projects/wordpress_branches`.
+     * From wordpress.org (stable-check), cached 12 h; [] when unknown.
+     *
+     * @return string[]
+     */
+    public static function wordpressVersions(): array
+    {
+        $cached = get_transient('wp_plugin_projects_wordpress_versions');
+
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $response = wp_remote_get('https://api.wordpress.org/core/stable-check/1.0/', ['timeout' => 5]);
+        $all = is_wp_error($response) ? null : json_decode(wp_remote_retrieve_body($response), true);
+        $newest = [];
+
+        foreach (array_keys(is_array($all) ? $all : []) as $version) {
+            $version = (string) $version;
+
+            if (!preg_match('/^(\d+\.\d+)(\.\d+)?$/', $version, $match)) {
+                continue;
+            }
+
+            if (!isset($newest[$match[1]]) || version_compare($version, $newest[$match[1]], '>')) {
+                $newest[$match[1]] = $version;
+            }
+        }
+
+        usort($newest, static fn (string $a, string $b): int => version_compare($b, $a));
+        $versions = array_slice($newest, 0, max(1, (int) apply_filters('wp_plugin_projects/wordpress_branches', 13)));
+
+        // a failed check is remembered for an hour only, so it is retried soon
+        set_transient('wp_plugin_projects_wordpress_versions', $versions, $versions ? 12 * HOUR_IN_SECONDS : HOUR_IN_SECONDS);
+
+        return $versions;
+    }
+
     /** @return array<string, mixed> */
     private function config(): array
     {
@@ -118,6 +159,7 @@ final class AppShell
             'todoUrl' => $manage && class_exists(\MKTodo\App\AppShell::class) ? \MKTodo\App\AppShell::url() : null,
             'publicFields' => Fields::publicFields(),
             'latestWordpress' => self::latestWordpress(),
+            'wordpressVersions' => $manage ? self::wordpressVersions() : [],
             'siteName' => get_bloginfo('name'),
             'homeUrl' => home_url('/'),
             'version' => WP_PLUGIN_PROJECTS_VERSION,
