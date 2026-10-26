@@ -21,6 +21,7 @@ use WP_REST_Server;
  * POST   /projects/v1/projects/{id}/token  – a new reporter token; returns the project
  * POST   /projects/v1/projects/order       { ids: [5, 2, 9] } – these projects in this order (one category); returns all
  * GET    /projects/v1/projects/{id}/tasks  – open tasks of the linked Todo project: { todo, tasks }
+ * GET    /projects/v1/projects/{id}/report – the last report of the site: { reportedAt, report }
  * GET    /projects/v1/todo-projects        – Todo's projects, to link one
  */
 final class ProjectsController extends Controller
@@ -59,6 +60,13 @@ final class ProjectsController extends Controller
         register_rest_route(self::NAMESPACE, '/projects/(?P<id>\d+)/tasks', [
             'methods' => WP_REST_Server::READABLE,
             'callback' => [$this, 'tasks'],
+            'permission_callback' => [$this, 'permission'],
+            'args' => ['id' => ['type' => 'integer', 'required' => true]],
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/projects/(?P<id>\d+)/report', [
+            'methods' => WP_REST_Server::READABLE,
+            'callback' => fn (WP_REST_Request $request) => $this->respond($this->projects->report((int) $request['id'])),
             'permission_callback' => [$this, 'permission'],
             'args' => ['id' => ['type' => 'integer', 'required' => true]],
         ]);

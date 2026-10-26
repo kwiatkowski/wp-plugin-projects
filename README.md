@@ -27,7 +27,8 @@ Aplikację Vue klonuje się do `{web root}/projects` – szczegóły w jej READM
 
 Projekt to wpis typu `mk_project` (tytuł = nazwa), pola to meta `_project_{pole}`, ręczna kolejność w kategorii –
 `_project_position`. Kategoria to term taksonomii `mk_project_category` (tylko magazyn – projekt wskazuje ją polem
-`categoryId`), jej kolejność – term meta `_project_position`. Usunięcie kategorii zostawia jej projekty bez kategorii.
+`categoryId`), jej kolejność – term meta `_project_position`, a slug (zmienia się razem z nazwą) to adres
+listy samej tej kategorii w aplikacji (`/projects/{slug}`). Usunięcie kategorii zostawia jej projekty bez kategorii.
 
 | Pole | Typ | Opis |
 | --- | --- | --- |
@@ -58,8 +59,9 @@ Właściciel dostaje przy projekcie `todo`: `{ id, name, color, url, open, overd
 | DELETE | `/projects/{id}` | właściciel | – (do kosza; projekt Todo zostaje bez zmian) |
 | POST | `/projects/order` | właściciel | `{ ids: [5, 2, 9] }` – te projekty (zwykle jednej kategorii) w tej kolejności; zwraca wszystkie |
 | GET | `/projects/{id}/tasks` | właściciel | – otwarte zadania powiązanego projektu Todo: `{ todo, tasks }` |
+| GET | `/projects/{id}/report` | właściciel | – ostatni raport strony: `{ reportedAt, report }` |
 | GET | `/todo-projects` | właściciel | – projekty Todo do powiązania |
-| GET | `/categories` | wszyscy | – kategorie w kolejności |
+| GET | `/categories` | wszyscy | – kategorie w kolejności: `{ id, name, slug, position }` |
 | POST | `/categories` | właściciel | `{ name }` |
 | PATCH | `/categories/{id}` | właściciel | `{ name }` |
 | DELETE | `/categories/{id}` | właściciel | – (projekty zostają bez kategorii) |
@@ -69,24 +71,19 @@ Właściciel dostaje przy projekcie `todo`: `{ id, name, color, url, open, overd
 
 Właściciel: zalogowany użytkownik z `manage_options` (filtr `wp_plugin_projects/capability`), cookie + nonce.
 
-## Raport strony (`reporter/`)
+## Raport strony
 
-`reporter/wp-plugin-projects-reporter.php` to samodzielna wtyczka (jeden plik) do wgrania na każdą stronę
-(`mu-plugins/` albo `plugins/`). Raz dziennie i minutę po aktualizacji WordPressa, wtyczek albo zmianie motywu wysyła
-`POST /report` z nagłówkiem `Authorization: Bearer {token}` (i `X-Projects-Token`, gdy hosting obcina `Authorization`):
-PHP, wersję WordPressa, motyw (i rodzica), Bedrock, Wordfence, ACF, MI Modal, multisite, aktywne wtyczki.
+Strony raportują o sobie przez moduł `report` [MK Core](https://bitbucket.org/kwiatkowski/www-kwiatkowski) (opis
+i konfiguracja w jego README; na stronach Meden – meden_plugin): `POST /report` z tokenem projektu – PHP, WordPress,
+motyw, Bedrock, Wordfence, ACF, MI Modal, użytkownicy (liczba, role, online) i wtyczki (aktywne, do aktualizacji).
+Pola raportowane (wyżej) uzupełniają projekt, cały raport zostaje przy nim (`GET /projects/{id}/report`, okno projektu).
 
-Konfiguracja – stała albo zmienna środowiska (w Bedrocku wystarczy `.env`):
+W `.env` strony (token: aplikacja → projekt → Raport):
 
 ```
 PROJECTS_REPORT_URL=https://kwiatkowski.co/wp-json/projects/v1/report
-PROJECTS_REPORT_TOKEN=…   # w aplikacji: projekt → Raport → token
+PROJECTS_REPORT_TOKEN=…
 ```
-
-Raportuje tylko produkcja (`WP_ENV=production`; filtr `wp_plugin_projects_reporter/enabled`).
-Ręcznie: `wp projects-report` (`--dry-run` – tylko pokaż, `--force` – także poza produkcją).
-
-Ten plugin ładuje reportera sam – strona z listą raportuje o sobie jak każda inna.
 
 ## Aplikacja pod `/projects/`
 
@@ -101,6 +98,5 @@ czy użytkownik może edytować, logowanie / wylogowanie). Dodaje też skrót *P
 | `wp_plugin_projects/path` | `projects` | adres aplikacji |
 | `wp_plugin_projects/app_index` | `{web root}/projects/web/index.html` | plik index.html zbudowanej aplikacji |
 | `wp_plugin_projects/public_fields` | `domains, status, engine, version, theme` | pola publicznej listy |
-| `wp_plugin_projects_reporter/enabled` | `true` na produkcji | czy strona wysyła raport |
 
 Z MK Core plugin dokłada swoją kartę do widgetu „Informacje o serwisie”.

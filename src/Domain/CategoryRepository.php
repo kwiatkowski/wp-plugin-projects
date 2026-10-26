@@ -9,12 +9,12 @@ use WP_Error;
 use WP_Term;
 
 /**
- * Categories of the list (terms of `mk_project_category`) as plain arrays: { id: int, name: string, position: int|null }.
+ * Categories of the list (terms of `mk_project_category`) as plain arrays: { id: int, name: string, slug: string, position: int|null }.
  * The user's order; categories never placed (null) come last, by name. Deleting one leaves its projects without a category.
  */
 final class CategoryRepository
 {
-    /** @return array<int, array{id: int, name: string, position: int|null}> */
+    /** @return array<int, array{id: int, name: string, slug: string, position: int|null}> */
     public function all(): array
     {
         $terms = get_terms(['taxonomy' => ContentTypes::CATEGORY, 'hide_empty' => false]);
@@ -32,7 +32,7 @@ final class CategoryRepository
         return get_term($id, ContentTypes::CATEGORY) instanceof WP_Term;
     }
 
-    /** @return array{id: int, name: string, position: int|null}|WP_Error */
+    /** @return array{id: int, name: string, slug: string, position: int|null}|WP_Error */
     public function create(string $name): array|WP_Error
     {
         $result = wp_insert_term(wp_slash($name), ContentTypes::CATEGORY);
@@ -49,21 +49,22 @@ final class CategoryRepository
         return $this->find($result['term_id']);
     }
 
-    /** @return array{id: int, name: string, position: int|null}|WP_Error */
+    /** @return array{id: int, name: string, slug: string, position: int|null}|WP_Error */
     public function rename(int $id, string $name): array|WP_Error
     {
         if (!$this->exists($id)) {
             return $this->notFound();
         }
 
-        $result = wp_update_term($id, ContentTypes::CATEGORY, ['name' => wp_slash($name)]);
+        // the slug follows the name – it is the address of the category's list (/projects/{slug})
+        $result = wp_update_term($id, ContentTypes::CATEGORY, ['name' => wp_slash($name), 'slug' => sanitize_title($name)]);
 
         return is_wp_error($result) ? $this->error($result) : $this->find($id);
     }
 
     /**
      * @param int[] $ids every category exactly once, in the new order
-     * @return array<int, array{id: int, name: string, position: int|null}>|WP_Error
+     * @return array<int, array{id: int, name: string, slug: string, position: int|null}>|WP_Error
      */
     public function reorder(array $ids): array|WP_Error
     {
@@ -99,7 +100,7 @@ final class CategoryRepository
         return true;
     }
 
-    /** @return array{id: int, name: string, position: int|null}|WP_Error */
+    /** @return array{id: int, name: string, slug: string, position: int|null}|WP_Error */
     public function find(int $id): array|WP_Error
     {
         $term = get_term($id, ContentTypes::CATEGORY);
@@ -107,7 +108,7 @@ final class CategoryRepository
         return $term instanceof WP_Term ? $this->toArray($term) : $this->notFound();
     }
 
-    /** @return array{id: int, name: string, position: int|null} */
+    /** @return array{id: int, name: string, slug: string, position: int|null} */
     private function toArray(WP_Term $term): array
     {
         $position = get_term_meta($term->term_id, ContentTypes::META_POSITION, true);
@@ -115,6 +116,7 @@ final class CategoryRepository
         return [
             'id' => $term->term_id,
             'name' => html_entity_decode($term->name, ENT_QUOTES, 'UTF-8'),
+            'slug' => urldecode($term->slug),
             'position' => is_numeric($position) ? (int) $position : null,
         ];
     }

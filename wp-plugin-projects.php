@@ -33,6 +33,3 @@ spl_autoload_register(static function (string $class): void {
 });
 
 add_action('plugins_loaded', [MKProjects\Plugin::class, 'boot']);
-
-// this site reports about itself like every other one – inert until PROJECTS_REPORT_URL and _TOKEN are set
-require __DIR__ . '/reporter/wp-plugin-projects-reporter.php';

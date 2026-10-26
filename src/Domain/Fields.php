@@ -8,7 +8,7 @@ namespace MKProjects\Domain;
  * The fields of a project besides its name (the post title) – one list for the meta registration,
  * the REST schema, saving and reading. Each is post meta `_project_{snake_case}`.
  *
- * `reported` fields are also written by the reporter plugin of the site itself (POST /report).
+ * `reported` fields are also written by the site itself (MK Core's `report` module, POST /report).
  * `categoryId` is a term of `mk_project_category`, `todoProject` a project of wp-plugin-todo (a `todo_project` term)
  * whose open tasks the list shows.
  */

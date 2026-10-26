@@ -11,10 +11,11 @@ use WP_REST_Response;
 use WP_REST_Server;
 
 /**
- * POST /projects/v1/report – a site reports about itself (the reporter plugin, reporter/ in this repository).
+ * POST /projects/v1/report – a site reports about itself (the `report` module of MK Core).
  *
  * Authorization: Bearer {token of the project} (or X-Projects-Token: {token}). Body: { php, engine, version, theme, bedrock, security, acf, miModal,
- * plugins?, environment?, home? } – only the fields in Fields::reported() change the project, the whole report is kept.
+ * users?, plugins?, pluginUpdates?, environment?, home? } – only the fields in Fields::reported() change the project, the whole
+ * report is kept (GET /projects/{id}/report).
  * No WordPress login: the token alone says which project it is.
  */
 final class ReportController extends Controller
@@ -34,7 +35,7 @@ final class ReportController extends Controller
 
     public function report(WP_REST_Request $request): WP_REST_Response|WP_Error
     {
-        // some hosts strip Authorization before PHP – the reporter sends the token in X-Projects-Token too
+        // some hosts strip Authorization before PHP – the site sends the token in X-Projects-Token too
         $token = trim((string) preg_replace('/^Bearer\s+/i', '', (string) ($request->get_header('authorization') ?: $request->get_header('x_projects_token'))));
         $report = $request->get_json_params();
 

@@ -209,6 +209,25 @@ final class ProjectRepository
         return $this->toArray($post);
     }
 
+    /**
+     * The last report of the project's site as it came (users, plugins …), with its time; report null – none yet.
+     *
+     * @return array{reportedAt: string|null, report: array<string, mixed>|null}|WP_Error
+     */
+    public function report(int $id): array|WP_Error
+    {
+        if (!$this->post($id)) {
+            return $this->notFound();
+        }
+
+        $report = json_decode((string) get_post_meta($id, ContentTypes::META_REPORT, true), true);
+
+        return [
+            'reportedAt' => get_post_meta($id, ContentTypes::META_REPORTED_AT, true) ?: null,
+            'report' => is_array($report) ? $report : null,
+        ];
+    }
+
     /** The project goes after the others of its category. */
     private function placeLast(int $id): void
     {
