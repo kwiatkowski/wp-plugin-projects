@@ -9,6 +9,8 @@ namespace MKProjects\Domain;
  * the REST schema, saving and reading. Each is post meta `_project_{snake_case}`.
  *
  * `reported` fields are also written by the reporter plugin of the site itself (POST /report).
+ * `categoryId` is a term of `mk_project_category`, `todoProject` a project of wp-plugin-todo (a `todo_project` term)
+ * whose open tasks the list shows.
  */
 final class Fields
 {
@@ -16,6 +18,7 @@ final class Fields
 
     /** @var array<string, array{type: string, format?: string, enum?: string[], reported?: bool, max?: int}> */
     public const ALL = [
+        'categoryId' => ['type' => 'integer'],
         'domain' => ['type' => 'string', 'max' => 200],
         'status' => ['type' => 'string', 'enum' => self::STATUSES],
         'server' => ['type' => 'string', 'max' => 100],
@@ -35,7 +38,7 @@ final class Fields
         'miModal' => ['type' => 'boolean', 'reported' => true],
         'dbSync' => ['type' => 'string', 'format' => 'date'],
         'listed' => ['type' => 'boolean'],
-        'inTodo' => ['type' => 'boolean'],
+        'todoProject' => ['type' => 'integer'],
         'notes' => ['type' => 'string', 'max' => 5000],
     ];
 

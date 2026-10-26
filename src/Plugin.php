@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace MKProjects;
 
 use MKProjects\App\AppShell;
+use MKProjects\Domain\CategoryRepository;
 use MKProjects\Domain\ProjectRepository;
+use MKProjects\Domain\TodoBridge;
+use MKProjects\Rest\CategoriesController;
 use MKProjects\Rest\ProjectsController;
 use MKProjects\Rest\ReportController;
 
@@ -22,10 +25,13 @@ final class Plugin
 {
     public static function boot(): void
     {
-        $projects = new ProjectRepository();
+        $categories = new CategoryRepository();
+        $todo = new TodoBridge();
+        $projects = new ProjectRepository($categories, $todo);
 
         (new ContentTypes())->register();
-        (new ProjectsController($projects))->register();
+        (new ProjectsController($projects, $todo))->register();
+        (new CategoriesController($categories))->register();
         (new ReportController($projects))->register();
         (new AppShell())->register();
 

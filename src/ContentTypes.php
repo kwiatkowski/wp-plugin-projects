@@ -11,11 +11,16 @@ use MKProjects\Domain\Fields;
  * Not public on the front end – the list is served by the app under /projects/; in wp-admin they are
  * visible in the menu *Projekty* (a backup view, editing happens in the app).
  *
- * wp-plugin-todo keeps its own fields of a project (colour, category, order) on the same post.
+ * Categories of the list are terms of `mk_project_category`, used for storage only – a project points to its
+ * category with the `categoryId` field (post meta), like Todo's projects point to their areas. Projects and categories
+ * keep their manual order in `_project_position` (post / term meta).
  */
 final class ContentTypes
 {
     public const PROJECT = 'mk_project';
+    public const CATEGORY = 'mk_project_category';
+
+    public const META_POSITION = '_project_position';
 
     public const META_TOKEN = '_project_report_token';
     public const META_REPORTED_AT = '_project_reported_at';
@@ -56,6 +61,41 @@ final class ContentTypes
             ],
             'rewrite' => false,
             'query_var' => false,
+        ]);
+
+        register_taxonomy(self::CATEGORY, [self::PROJECT], [
+            'labels' => [
+                'name' => __('Kategorie projektów', 'wp-plugin-projects'),
+                'singular_name' => __('Kategoria', 'wp-plugin-projects'),
+            ],
+            'public' => false,
+            'show_ui' => true,
+            'show_in_menu' => true,
+            'show_admin_column' => false,
+            'show_in_rest' => false,
+            'hierarchical' => false,
+            'capabilities' => [
+                'manage_terms' => $capability,
+                'edit_terms' => $capability,
+                'delete_terms' => $capability,
+                'assign_terms' => $capability,
+            ],
+            'rewrite' => false,
+            'query_var' => false,
+        ]);
+
+        register_term_meta(self::CATEGORY, self::META_POSITION, [
+            'type' => 'integer',
+            'single' => true,
+            'show_in_rest' => false,
+            'auth_callback' => [Plugin::class, 'canManage'],
+        ]);
+
+        register_post_meta(self::PROJECT, self::META_POSITION, [
+            'type' => 'integer',
+            'single' => true,
+            'show_in_rest' => false,
+            'auth_callback' => [Plugin::class, 'canManage'],
         ]);
 
         foreach (Fields::ALL as $field => $definition) {

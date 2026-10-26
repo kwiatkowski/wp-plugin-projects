@@ -6,6 +6,7 @@ namespace MKProjects\Rest;
 
 use MKProjects\Domain\Fields;
 use MKProjects\Domain\ProjectRepository;
+use MKProjects\Domain\TodoBridge;
 use MKProjects\Plugin;
 use WP_Error;
 use WP_REST_Request;
@@ -18,11 +19,16 @@ use WP_REST_Server;
  * PATCH  /projects/v1/projects/{id}        { name?, ...fields } – null clears a field
  * DELETE /projects/v1/projects/{id}        – to the trash
  * POST   /projects/v1/projects/{id}/token  – a new reporter token; returns the project
+ * POST   /projects/v1/projects/order       { ids: [5, 2, 9] } – these projects in this order (one category); returns all
+ * GET    /projects/v1/projects/{id}/tasks  – open tasks of the linked Todo project: { todo, tasks }
+ * GET    /projects/v1/todo-projects        – Todo's projects, to link one
  */
 final class ProjectsController extends Controller
 {
-    public function __construct(private readonly ProjectRepository $projects)
-    {
+    public function __construct(
+        private readonly ProjectRepository $projects,
+        private readonly TodoBridge $todo,
+    ) {
     }
 
     public function registerRoutes(): void
@@ -39,6 +45,28 @@ final class ProjectsController extends Controller
                 'permission_callback' => [$this, 'permission'],
                 'args' => $this->args(true),
             ],
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/projects/order', [
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => fn (WP_REST_Request $request) => $this->respond($this->projects->reorder((array) $request['ids'])),
+            'permission_callback' => [$this, 'permission'],
+            'args' => [
+                'ids' => ['type' => 'array', 'required' => true, 'minItems' => 1, 'items' => ['type' => 'integer', 'minimum' => 1], 'validate_callback' => 'rest_validate_request_arg'],
+            ],
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/projects/(?P<id>\d+)/tasks', [
+            'methods' => WP_REST_Server::READABLE,
+            'callback' => [$this, 'tasks'],
+            'permission_callback' => [$this, 'permission'],
+            'args' => ['id' => ['type' => 'integer', 'required' => true]],
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/todo-projects', [
+            'methods' => WP_REST_Server::READABLE,
+            'callback' => fn () => $this->respond(array_values($this->todo->projects())),
+            'permission_callback' => [$this, 'permission'],
         ]);
 
         register_rest_route(self::NAMESPACE, '/projects/(?P<id>\d+)/token', [
@@ -61,6 +89,20 @@ final class ProjectsController extends Controller
                 'callback' => [$this, 'delete'],
                 'permission_callback' => [$this, 'permission'],
             ],
+        ]);
+    }
+
+    public function tasks(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $project = $this->projects->find((int) $request['id']);
+
+        if (is_wp_error($project)) {
+            return $project;
+        }
+
+        return $this->respond([
+            'todo' => $project['todo'],
+            'tasks' => $project['todo'] ? $this->todo->openTasks($project['todo']['id']) : [],
         ]);
     }
 
@@ -92,7 +134,11 @@ final class ProjectsController extends Controller
 
         foreach (Fields::ALL as $field => $definition) {
             $args[$field] = [
-                'type' => $definition['type'] === 'boolean' ? 'boolean' : ['string', 'null'],
+                'type' => match ($definition['type']) {
+                    'boolean' => 'boolean',
+                    'integer' => ['integer', 'null'],
+                    default => ['string', 'null'],
+                },
                 'validate_callback' => 'rest_validate_request_arg',
             ];
 

@@ -4,8 +4,9 @@ Zaplecze aplikacji [vue-projects](https://github.com/kwiatkowski/vue-projects): 
 jako typ treści WordPressa, REST API `projects/v1`, raporty wysyłane przez same strony i serwowanie aplikacji
 pod `/projects/` – publicznie (okrojona lista), po zalogowaniu całość z edycją.
 
-Te same projekty widzi [wp-plugin-todo](https://github.com/kwiatkowski/wp-plugin-todo) – w Todo pokazują się te
-z włączonym „Pokaż w Todo”.
+Projekty listy i projekty [wp-plugin-todo](https://github.com/kwiatkowski/wp-plugin-todo) są osobne – projekt listy
+można powiązać z projektem Todo, a lista pokazuje wtedy jego otwarte zadania (liczba, po terminie, spis w oknie projektu).
+Projekty grupują kategorie listy; kolejność kategorii i projektów (także między kategoriami) ustawia się przeciąganiem.
 
 ## Wymagania
 
@@ -24,10 +25,13 @@ Aplikację Vue klonuje się do `{web root}/projects` – szczegóły w jej READM
 
 ## Dane
 
-Projekt to wpis typu `mk_project` (tytuł = nazwa), pola to meta `_project_{pole}`:
+Projekt to wpis typu `mk_project` (tytuł = nazwa), pola to meta `_project_{pole}`, ręczna kolejność w kategorii –
+`_project_position`. Kategoria to term taksonomii `mk_project_category` (tylko magazyn – projekt wskazuje ją polem
+`categoryId`), jej kolejność – term meta `_project_position`. Usunięcie kategorii zostawia jej projekty bez kategorii.
 
 | Pole | Typ | Opis |
 | --- | --- | --- |
+| `categoryId` | ID | kategoria listy |
 | `domain` | tekst | domena strony (bez `https://`) |
 | `status` | `online` / `dev` / `suspended` / `offline` | stan strony |
 | `server`, `serverUrl` | tekst, adres | hosting i link do niego (panel) |
@@ -38,20 +42,28 @@ Projekt to wpis typu `mk_project` (tytuł = nazwa), pola to meta `_project_{pole
 | `localUrl` | adres | wersja lokalna |
 | `dbSync` | RRRR-MM-DD | ostatnia synchronizacja bazy |
 | `listed` | tak/nie | na publicznej liście (tylko z domeną) |
-| `inTodo` | tak/nie | widoczny w Todo |
+| `todoProject` | ID | powiązany projekt Todo (term `todo_project`) |
 | `notes` | tekst | notatki |
 
 Pola `php`, `engine`, `version`, `theme`, `bedrock`, `security`, `acf`, `miModal` uzupełnia też raport strony.
-Todo trzyma na tym samym wpisie swoje pola projektu: `_todo_color`, `_todo_area`, `_todo_position`.
+Właściciel dostaje przy projekcie `todo`: `{ id, name, color, url, open, overdue }` powiązanego projektu Todo (albo `null`).
 
 ## REST API (`/wp-json/projects/v1`)
 
 | Metoda | Ścieżka | Dostęp | Body |
 | --- | --- | --- | --- |
-| GET | `/projects` | wszyscy | – (niezalogowany: tylko `listed` z domeną i pola z `wp_plugin_projects/public_fields`) |
+| GET | `/projects` | wszyscy | – (niezalogowany: tylko `listed` z domeną, nazwa, kategoria, kolejność i pola z `wp_plugin_projects/public_fields`) |
 | POST | `/projects` | właściciel | `{ name, ...pola }` |
 | PATCH | `/projects/{id}` | właściciel | dowolne pola; `null` czyści |
-| DELETE | `/projects/{id}` | właściciel | – (do kosza; zadania Todo tego projektu trafiają do „Do posortowania”) |
+| DELETE | `/projects/{id}` | właściciel | – (do kosza; projekt Todo zostaje bez zmian) |
+| POST | `/projects/order` | właściciel | `{ ids: [5, 2, 9] }` – te projekty (zwykle jednej kategorii) w tej kolejności; zwraca wszystkie |
+| GET | `/projects/{id}/tasks` | właściciel | – otwarte zadania powiązanego projektu Todo: `{ todo, tasks }` |
+| GET | `/todo-projects` | właściciel | – projekty Todo do powiązania |
+| GET | `/categories` | wszyscy | – kategorie w kolejności |
+| POST | `/categories` | właściciel | `{ name }` |
+| PATCH | `/categories/{id}` | właściciel | `{ name }` |
+| DELETE | `/categories/{id}` | właściciel | – (projekty zostają bez kategorii) |
+| POST | `/categories/order` | właściciel | `{ ids: [3, 1, 2] }` – każda kategoria raz, w nowej kolejności |
 | POST | `/projects/{id}/token` | właściciel | – nowy token raportu (stary przestaje działać) |
 | POST | `/report` | token | raport strony – patrz niżej |
 
