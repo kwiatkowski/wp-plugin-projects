@@ -137,6 +137,7 @@ final class ProjectsController extends Controller
                 'type' => match ($definition['type']) {
                     'boolean' => 'boolean',
                     'integer' => ['integer', 'null'],
+                    'array' => ['array', 'null'],
                     default => ['string', 'null'],
                 },
                 'validate_callback' => 'rest_validate_request_arg',

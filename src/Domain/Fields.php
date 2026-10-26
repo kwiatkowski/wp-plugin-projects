@@ -19,7 +19,8 @@ final class Fields
     /** @var array<string, array{type: string, format?: string, enum?: string[], reported?: bool, max?: int}> */
     public const ALL = [
         'categoryId' => ['type' => 'integer'],
-        'domain' => ['type' => 'string', 'max' => 200],
+        // the site's addresses, without https:// – one project can have several (e.g. language versions)
+        'domains' => ['type' => 'array', 'max' => 20],
         'status' => ['type' => 'string', 'enum' => self::STATUSES],
         'server' => ['type' => 'string', 'max' => 100],
         'serverUrl' => ['type' => 'string', 'format' => 'uri'],
@@ -43,7 +44,7 @@ final class Fields
     ];
 
     /** What everyone sees on the public list (filter `wp_plugin_projects/public_fields`). */
-    public const PUBLIC = ['domain', 'status', 'engine', 'version', 'theme'];
+    public const PUBLIC = ['domains', 'status', 'engine', 'version', 'theme'];
 
     public static function metaKey(string $field): string
     {

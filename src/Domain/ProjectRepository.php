@@ -43,7 +43,7 @@ final class ProjectRepository
             $fields = array_flip(['id', 'name', 'categoryId', 'position', ...Fields::publicFields()]);
             $projects = array_values(array_map(
                 static fn (array $project): array => array_intersect_key($project, $fields),
-                array_filter($projects, static fn (array $project): bool => $project['listed'] && $project['domain']),
+                array_filter($projects, static fn (array $project): bool => $project['listed'] && $project['domains']),
             ));
         }
 
@@ -273,10 +273,21 @@ final class ProjectRepository
 
     /**
      * @param array{type: string, format?: string, enum?: string[], max?: int} $definition
-     * @return string|int|null what is stored; null = nothing
+     * @return string|int|string[]|null what is stored; null = nothing
      */
-    private function clean(mixed $value, array $definition): string|int|null
+    private function clean(mixed $value, array $definition): string|int|array|null
     {
+        // domains: bare host names – no scheme, no trailing slash, lower case, each once
+        if ($definition['type'] === 'array') {
+            $items = array_map(
+                static fn ($item): string => strtolower(trim((string) preg_replace(['#^https?://#i', '#/.*$#'], '', trim(sanitize_text_field((string) $item))))),
+                is_array($value) ? $value : [],
+            );
+            $items = array_slice(array_values(array_unique(array_filter($items))), 0, $definition['max'] ?? 20);
+
+            return $items ?: null;
+        }
+
         if ($definition['type'] === 'boolean') {
             return $value ? 1 : 0;
         }
@@ -321,6 +332,7 @@ final class ProjectRepository
             $project[$field] = match ($definition['type']) {
                 'boolean' => (bool) $value,
                 'integer' => (int) $value ?: null,
+                'array' => is_array($value) ? array_values($value) : [],
                 default => (string) $value === '' ? null : (string) $value,
             };
         }

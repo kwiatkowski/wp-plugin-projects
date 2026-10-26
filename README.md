@@ -32,7 +32,7 @@ Projekt to wpis typu `mk_project` (tytuł = nazwa), pola to meta `_project_{pole
 | Pole | Typ | Opis |
 | --- | --- | --- |
 | `categoryId` | ID | kategoria listy |
-| `domain` | tekst | domena strony (bez `https://`) |
+| `domains` | lista | domeny strony (bez `https://`) – projekt może mieć kilka, pierwsza jest główna |
 | `status` | `online` / `dev` / `suspended` / `offline` | stan strony |
 | `server`, `serverUrl` | tekst, adres | hosting i link do niego (panel) |
 | `serverAccount` | tekst | konto na serwerze |
@@ -100,7 +100,7 @@ czy użytkownik może edytować, logowanie / wylogowanie). Dodaje też skrót *P
 | `wp_plugin_projects/capability` | `manage_options` | kto widzi wszystko i edytuje |
 | `wp_plugin_projects/path` | `projects` | adres aplikacji |
 | `wp_plugin_projects/app_index` | `{web root}/projects/web/index.html` | plik index.html zbudowanej aplikacji |
-| `wp_plugin_projects/public_fields` | `domain, status, engine, version, theme` | pola publicznej listy |
+| `wp_plugin_projects/public_fields` | `domains, status, engine, version, theme` | pola publicznej listy |
 | `wp_plugin_projects_reporter/enabled` | `true` na produkcji | czy strona wysyła raport |
 
 Z MK Core plugin dokłada swoją kartę do widgetu „Informacje o serwisie”.
