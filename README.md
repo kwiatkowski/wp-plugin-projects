@@ -47,7 +47,8 @@ listy samej tej kategorii w aplikacji (`/projects/{slug}`). Usunięcie kategorii
 | `notes` | tekst | notatki |
 
 Pola `php`, `engine`, `version`, `theme`, `bedrock`, `security`, `acf`, `miModal` uzupełnia też raport strony.
-Właściciel dostaje przy projekcie `todo`: `{ id, name, color, url, open, overdue }` powiązanego projektu Todo (albo `null`).
+Właściciel dostaje przy projekcie `todo`: `{ id, name, color, url, open, overdue, today, soon, undated }` powiązanego projektu Todo
+(otwarte zadania: wszystkie, po terminie, na dziś, w kolejnych 7 dniach, bez terminu; albo `null`).
 
 ## REST API (`/wp-json/projects/v1`)
 

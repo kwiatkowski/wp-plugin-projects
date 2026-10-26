@@ -46,9 +46,10 @@ final class TodoBridge
     }
 
     /**
-     * The linked Todo project with its open and overdue task counts, or null when there is none (anymore).
+     * The linked Todo project with its open task counts – all, overdue, due today, in the next 7 days, undated – or null
+     * when there is none (anymore).
      *
-     * @return array{id: int, name: string, color: string, url: string, open: int, overdue: int}|null
+     * @return array{id: int, name: string, color: string, url: string, open: int, overdue: int, today: int, soon: int, undated: int}|null
      */
     public function summary(?int $id): ?array
     {
@@ -60,10 +61,16 @@ final class TodoBridge
 
         $open = $this->openTasks($id);
         $today = current_time('Y-m-d');
+        $week = wp_date('Y-m-d', strtotime($today . ' +7 days'));
+        $count = static fn (callable $test): int => count(array_filter($open, $test));
 
         return $project + [
             'open' => count($open),
-            'overdue' => count(array_filter($open, static fn (array $task): bool => $task['due'] !== null && $task['due'] < $today)),
+            'overdue' => $count(static fn (array $task): bool => $task['due'] !== null && $task['due'] < $today),
+            'today' => $count(static fn (array $task): bool => $task['due'] === $today),
+            // the next seven days after today
+            'soon' => $count(static fn (array $task): bool => $task['due'] !== null && $task['due'] > $today && $task['due'] <= $week),
+            'undated' => $count(static fn (array $task): bool => $task['due'] === null),
         ];
     }
 
