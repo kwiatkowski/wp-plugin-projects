@@ -61,6 +61,7 @@ Właściciel dostaje przy projekcie `todo`: `{ id, name, color, url, open, overd
 | GET | `/projects/{id}/tasks` | właściciel | – otwarte zadania powiązanego projektu Todo: `{ todo, tasks }` |
 | GET | `/projects/{id}/report` | właściciel | – ostatni raport strony: `{ reportedAt, report }` |
 | GET | `/todo-projects` | właściciel | – projekty Todo do powiązania |
+| GET | `/changed` | wszyscy | – kiedy lista ostatnio się zmieniła: `{ changedAt }` (projekt, jego pola, raport, kategoria) – aplikacja sprawdza to co kilka sekund |
 | GET | `/categories` | wszyscy | – kategorie w kolejności: `{ id, name, slug, position }` |
 | POST | `/categories` | właściciel | `{ name }` |
 | PATCH | `/categories/{id}` | właściciel | `{ name }` |

@@ -6,6 +6,7 @@ namespace MKProjects;
 
 use MKProjects\App\AppShell;
 use MKProjects\Domain\CategoryRepository;
+use MKProjects\Domain\ChangeMarker;
 use MKProjects\Domain\ProjectRepository;
 use MKProjects\Domain\TodoBridge;
 use MKProjects\Rest\CategoriesController;
@@ -30,6 +31,7 @@ final class Plugin
         $projects = new ProjectRepository($categories, $todo);
 
         (new ContentTypes())->register();
+        (new ChangeMarker())->register();
         (new ProjectsController($projects, $todo))->register();
         (new CategoriesController($categories))->register();
         (new ReportController($projects))->register();

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MKProjects\Rest;
 
+use MKProjects\Domain\ChangeMarker;
 use MKProjects\Domain\Fields;
 use MKProjects\Domain\ProjectRepository;
 use MKProjects\Domain\TodoBridge;
@@ -23,6 +24,7 @@ use WP_REST_Server;
  * GET    /projects/v1/projects/{id}/tasks  – open tasks of the linked Todo project: { todo, tasks }
  * GET    /projects/v1/projects/{id}/report – the last report of the site: { reportedAt, report }
  * GET    /projects/v1/todo-projects        – Todo's projects, to link one
+ * GET    /projects/v1/changed              – everyone: when the list last changed – { changedAt } (the app polls it)
  */
 final class ProjectsController extends Controller
 {
@@ -46,6 +48,17 @@ final class ProjectsController extends Controller
                 'permission_callback' => [$this, 'permission'],
                 'args' => $this->args(true),
             ],
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/changed', [
+            'methods' => WP_REST_Server::READABLE,
+            'callback' => static function (): WP_REST_Response {
+                $response = new WP_REST_Response(['changedAt' => ChangeMarker::get()]);
+                $response->header('Cache-Control', 'no-store');
+
+                return $response;
+            },
+            'permission_callback' => '__return_true',
         ]);
 
         register_rest_route(self::NAMESPACE, '/projects/order', [
