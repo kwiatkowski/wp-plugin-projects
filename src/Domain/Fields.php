@@ -44,7 +44,6 @@ final class Fields
         'login' => ['type' => 'string', 'max' => 100],
         'acf' => ['type' => 'boolean', 'reported' => true],
         'miModal' => ['type' => 'boolean', 'reported' => true],
-        'dbSync' => ['type' => 'string', 'format' => 'date'],
         'todoProject' => ['type' => 'integer'],
         'notes' => ['type' => 'string', 'max' => 5000],
     ];

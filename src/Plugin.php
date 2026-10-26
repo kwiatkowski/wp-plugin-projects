@@ -38,6 +38,27 @@ final class Plugin
         (new AppShell())->register();
 
         add_filter('mk_core/dashboard/packages', [self::class, 'dashboardCard']);
+
+        self::dropRetiredFields();
+    }
+
+    /** Fields the list no longer has – their stored values go, once (the option remembers it was done). */
+    private const RETIRED_FIELDS = ['_project_db_sync', '_project_listed'];
+
+    private static function dropRetiredFields(): void
+    {
+        $done = (array) get_option('wp_plugin_projects_retired_fields', []);
+        $todo = array_diff(self::RETIRED_FIELDS, $done);
+
+        if (!$todo) {
+            return;
+        }
+
+        foreach ($todo as $key) {
+            delete_post_meta_by_key($key);
+        }
+
+        update_option('wp_plugin_projects_retired_fields', self::RETIRED_FIELDS, true);
     }
 
     public static function capability(): string

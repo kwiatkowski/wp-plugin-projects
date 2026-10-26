@@ -45,7 +45,6 @@ listy samej tej kategorii w aplikacji (`/projects/{slug}`). Usunięcie kategorii
 | `stagingUrl`, `stagingAdminUrl` | adres | staging i jego panel |
 | `localAdminUrl` | adres | panel wersji lokalnej |
 | `login` | tekst | login do paneli (hasło osobno, zaszyfrowane – niżej) |
-| `dbSync` | RRRR-MM-DD | ostatnia synchronizacja bazy |
 | `todoProject` | ID | powiązany projekt Todo (term `todo_project`) |
 | `notes` | tekst | notatki |
 
