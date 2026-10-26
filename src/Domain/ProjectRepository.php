@@ -191,7 +191,8 @@ final class ProjectRepository
      * Saves what a site reported about itself (only Fields::reported()) and stamps the time.
      *
      * @param array<string, mixed> $report
-     * @return array<string, mixed>|WP_Error the project
+     * @return array<string, mixed>|WP_Error the project, with `previousReportAt` and `changes` – what the report changed
+     *   on the list: [{ what: field|'plugin'|'users'|'online', name?, from, to }]
      */
     public function applyReport(string $token, array $report): array|WP_Error
     {
@@ -201,12 +202,73 @@ final class ProjectRepository
             return new WP_Error('projects_invalid_token', __('Nieprawidłowy token raportu.', 'wp-plugin-projects'), ['status' => 401]);
         }
 
+        $before = $this->toArray($post);
+        $previous = json_decode((string) get_post_meta($post->ID, ContentTypes::META_REPORT, true), true);
+
         $this->save($post->ID, array_intersect_key($report, array_flip(Fields::reported())));
         update_post_meta($post->ID, ContentTypes::META_REPORTED_AT, gmdate(DATE_ATOM));
         // the whole report (plugins, environment …) for a closer look later
         update_post_meta($post->ID, ContentTypes::META_REPORT, wp_slash((string) wp_json_encode($report, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)));
 
-        return $this->toArray($post);
+        $project = $this->toArray($post);
+        $project['previousReportAt'] = $before['reportedAt'];
+        $project['changes'] = $this->reportChanges($before, $project, is_array($previous) ? $previous : [], $report);
+
+        return $project;
+    }
+
+    /**
+     * What a report changed: the project's reported fields, the plugins (version, installed, removed) and users,
+     * against the report before it.
+     *
+     * @param array<string, mixed> $before
+     * @param array<string, mixed> $after
+     * @param array<string, mixed> $previous
+     * @param array<string, mixed> $report
+     * @return array<int, array{what: string, name?: string, from: mixed, to: mixed}>
+     */
+    private function reportChanges(array $before, array $after, array $previous, array $report): array
+    {
+        $changes = [];
+
+        foreach (Fields::reported() as $field) {
+            if ($before[$field] !== $after[$field]) {
+                $changes[] = ['what' => $field, 'from' => $before[$field], 'to' => $after[$field]];
+            }
+        }
+
+        // the first report has nothing to compare plugins and users with
+        if (!$previous) {
+            return $changes;
+        }
+
+        $plugins = static fn (array $data): array => array_column(array_filter((array) ($data['plugins'] ?? []), 'is_array'), null, 'file');
+        $old = $plugins($previous);
+        $new = $plugins($report);
+
+        foreach ($new as $file => $plugin) {
+            $from = isset($old[$file]) ? (string) ($old[$file]['version'] ?? '') : null;
+            $to = (string) ($plugin['version'] ?? '');
+
+            if ($from !== $to) {
+                $changes[] = ['what' => 'plugin', 'name' => (string) ($plugin['name'] ?? $file), 'from' => $from, 'to' => $to];
+            }
+        }
+
+        foreach (array_diff_key($old, $new) as $file => $plugin) {
+            $changes[] = ['what' => 'plugin', 'name' => (string) ($plugin['name'] ?? $file), 'from' => (string) ($plugin['version'] ?? ''), 'to' => null];
+        }
+
+        foreach (['total' => 'users', 'online' => 'online'] as $key => $what) {
+            $from = $previous['users'][$key] ?? null;
+            $to = $report['users'][$key] ?? null;
+
+            if ($from !== $to) {
+                $changes[] = ['what' => $what, 'from' => $from, 'to' => $to];
+            }
+        }
+
+        return $changes;
     }
 
     /**

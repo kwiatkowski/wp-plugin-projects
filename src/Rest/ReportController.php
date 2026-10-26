@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MKProjects\Rest;
 
+use MKProjects\App\AppShell;
 use MKProjects\Domain\ProjectRepository;
 use WP_Error;
 use WP_REST_Request;
@@ -15,7 +16,8 @@ use WP_REST_Server;
  *
  * Authorization: Bearer {token of the project} (or X-Projects-Token: {token}). Body: { php, engine, version, theme, bedrock, security, acf, miModal,
  * users?, plugins?, pluginUpdates?, environment?, home? } – only the fields in Fields::reported() change the project, the whole
- * report is kept (GET /projects/{id}/report).
+ * report is kept (GET /projects/{id}/report). Answers { ok, project, list, reportedAt, previousReportAt, changes } –
+ * changes: what the report changed on the list, [{ what: field|'plugin'|'users'|'online', name?, from, to }].
  * No WordPress login: the token alone says which project it is.
  */
 final class ReportController extends Controller
@@ -45,6 +47,17 @@ final class ReportController extends Controller
 
         $project = $this->projects->applyReport($token, $report);
 
-        return is_wp_error($project) ? $project : new WP_REST_Response(['ok' => true, 'project' => $project['name'], 'reportedAt' => $project['reportedAt']]);
+        if (is_wp_error($project)) {
+            return $project;
+        }
+
+        return new WP_REST_Response([
+            'ok' => true,
+            'project' => $project['name'],
+            'list' => AppShell::url(),
+            'reportedAt' => $project['reportedAt'],
+            'previousReportAt' => $project['previousReportAt'],
+            'changes' => $project['changes'],
+        ]);
     }
 }
