@@ -272,24 +272,30 @@ final class ProjectRepository
     }
 
     /**
-     * Every project with the time of its last report, by name – what a site sees after reporting (`wp projects-report`).
+     * Every project with the time of its last report, in the list's order – categories in theirs, the projects by their
+     * position within, the uncategorized last – what a site sees after reporting (`wp projects-report`).
      *
      * @return array<int, array{id: int, name: string, reportedAt: string|null}>
      */
     public function reportTimes(): array
     {
+        $categoryOrder = array_flip(array_column($this->categories->all(), 'id'));
         $projects = array_map(
-            static fn (WP_Post $post): array => [
+            fn (WP_Post $post): array => [
                 'id' => $post->ID,
                 'name' => html_entity_decode($post->post_title, ENT_QUOTES, 'UTF-8'),
                 'reportedAt' => get_post_meta($post->ID, ContentTypes::META_REPORTED_AT, true) ?: null,
+                'category' => $categoryOrder[(int) get_post_meta($post->ID, Fields::metaKey('categoryId'), true)] ?? PHP_INT_MAX,
+                'position' => is_numeric($position = get_post_meta($post->ID, ContentTypes::META_POSITION, true)) ? (int) $position : PHP_INT_MAX,
             ],
             get_posts(['post_type' => ContentTypes::PROJECT, 'post_status' => 'publish', 'numberposts' => -1, 'no_found_rows' => true]),
         );
 
-        usort($projects, static fn (array $a, array $b): int => strnatcasecmp($a['name'], $b['name']));
+        // the app's compareManual: placed by position, never placed ones after them, by name
+        usort($projects, static fn (array $a, array $b): int => [$a['category'], $a['position']] <=> [$b['category'], $b['position']]
+            ?: strnatcasecmp($a['name'], $b['name']));
 
-        return $projects;
+        return array_map(static fn (array $project): array => array_diff_key($project, ['category' => 0, 'position' => 0]), $projects);
     }
 
     /**
