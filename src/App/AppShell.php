@@ -113,7 +113,8 @@ final class AppShell
             ] : null,
             'loginUrl' => wp_login_url(self::url()),
             'logoutUrl' => is_user_logged_in() ? html_entity_decode(wp_logout_url(self::url()), ENT_QUOTES, 'UTF-8') : null,
-            'reportUrl' => esc_url_raw(rest_url('projects/v1/report')),
+            // the path only – MK Core resolves it against the list's own address (kwiatkowski.co), whichever copy shows it
+            'reportUrl' => (string) wp_parse_url(rest_url('projects/v1/report'), PHP_URL_PATH),
             'todoUrl' => $manage && class_exists(\MKTodo\App\AppShell::class) ? \MKTodo\App\AppShell::url() : null,
             'publicFields' => Fields::publicFields(),
             'latestWordpress' => self::latestWordpress(),

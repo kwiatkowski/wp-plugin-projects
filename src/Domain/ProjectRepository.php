@@ -10,9 +10,9 @@ use WP_Post;
 
 /**
  * Projects (posts of the `mk_project` type) as plain arrays:
- * { id, name, position, ...Fields::ALL, todo, reportedAt, token, updatedAt }.
+ * { id, name, position, ...Fields::ALL, todo, reportedAt, token, hasPassword, updatedAt }.
  *
- * Two views: the full one for the owner, the public one – only listed projects with a domain, only their name,
+ * Two views: the full one for the owner, the public one – only projects with a domain, only their name,
  * category, order and Fields::publicFields() – for everyone else. Strings and numbers that are empty are null,
  * booleans never are. `position` is the user's order within the project's category (null = never placed: last, by name);
  * `todo` is the linked Todo project with its open task counts (owner only).
@@ -43,7 +43,7 @@ final class ProjectRepository
             $fields = array_flip(['id', 'name', 'categoryId', 'position', ...Fields::publicFields()]);
             $projects = array_values(array_map(
                 static fn (array $project): array => array_intersect_key($project, $fields),
-                array_filter($projects, static fn (array $project): bool => $project['listed'] && $project['domains']),
+                array_filter($projects, static fn (array $project): bool => (bool) $project['domains']),
             ));
         }
 
@@ -173,6 +173,55 @@ final class ProjectRepository
         }
 
         return wp_trash_post($id) ? true : new WP_Error('projects_delete_failed', __('Nie udało się usunąć projektu.', 'wp-plugin-projects'), ['status' => 500]);
+    }
+
+    /**
+     * The panel password, decrypted; null – none (or it can't be read any more: the site's salts changed).
+     */
+    public function password(int $id): string|null|WP_Error
+    {
+        if (!$this->post($id)) {
+            return $this->notFound();
+        }
+
+        $stored = base64_decode((string) get_post_meta($id, ContentTypes::META_PASSWORD, true), true);
+
+        if (!$stored || strlen($stored) <= SODIUM_CRYPTO_SECRETBOX_NONCEBYTES) {
+            return null;
+        }
+
+        $plain = sodium_crypto_secretbox_open(substr($stored, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES), substr($stored, 0, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES), $this->secretKey());
+
+        return $plain === false ? null : $plain;
+    }
+
+    /**
+     * Saves the panel password encrypted (libsodium, the key from the site's AUTH salt – a database dump alone doesn't
+     * reveal it); empty or null removes it. Returns the project.
+     *
+     * @return array<string, mixed>|WP_Error
+     */
+    public function setPassword(int $id, ?string $password): array|WP_Error
+    {
+        $post = $this->post($id);
+
+        if (!$post) {
+            return $this->notFound();
+        }
+
+        if ($password === null || $password === '') {
+            delete_post_meta($id, ContentTypes::META_PASSWORD);
+        } else {
+            $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
+            update_post_meta($id, ContentTypes::META_PASSWORD, base64_encode($nonce . sodium_crypto_secretbox(mb_substr($password, 0, 500), $nonce, $this->secretKey())));
+        }
+
+        return $this->toArray($post);
+    }
+
+    private function secretKey(): string
+    {
+        return sodium_crypto_generichash(wp_salt('auth') . '|wp-plugin-projects|password', '', SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
     }
 
     /** A new reporter token – the old one stops working at once. */
@@ -447,6 +496,8 @@ final class ProjectRepository
 
         $project['reportedAt'] = get_post_meta($post->ID, ContentTypes::META_REPORTED_AT, true) ?: null;
         $project['token'] = get_post_meta($post->ID, ContentTypes::META_TOKEN, true) ?: null;
+        // the password itself only on request (GET /projects/{id}/password) – not in every list
+        $project['hasPassword'] = get_post_meta($post->ID, ContentTypes::META_PASSWORD, true) !== '';
         $project['updatedAt'] = $post->post_modified_gmt !== '0000-00-00 00:00:00' ? gmdate(DATE_ATOM, (int) strtotime($post->post_modified_gmt . ' UTC')) : null;
 
         return $project;

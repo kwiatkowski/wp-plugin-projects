@@ -35,10 +35,16 @@ final class Fields
         'bedrock' => ['type' => 'boolean', 'reported' => true],
         'security' => ['type' => 'boolean', 'reported' => true],
         'localUrl' => ['type' => 'string', 'format' => 'uri'],
+        // access: the panels (WordPress admin) of production, staging and the local copy, staging's address, the login
+        // (the password is kept apart, encrypted – ProjectRepository::setPassword())
+        'adminUrl' => ['type' => 'string', 'format' => 'uri'],
+        'stagingUrl' => ['type' => 'string', 'format' => 'uri'],
+        'stagingAdminUrl' => ['type' => 'string', 'format' => 'uri'],
+        'localAdminUrl' => ['type' => 'string', 'format' => 'uri'],
+        'login' => ['type' => 'string', 'max' => 100],
         'acf' => ['type' => 'boolean', 'reported' => true],
         'miModal' => ['type' => 'boolean', 'reported' => true],
         'dbSync' => ['type' => 'string', 'format' => 'date'],
-        'listed' => ['type' => 'boolean'],
         'todoProject' => ['type' => 'integer'],
         'notes' => ['type' => 'string', 'max' => 5000],
     ];

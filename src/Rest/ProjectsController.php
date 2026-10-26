@@ -23,6 +23,8 @@ use WP_REST_Server;
  * POST   /projects/v1/projects/order       { ids: [5, 2, 9] } – these projects in this order (one category); returns all
  * GET    /projects/v1/projects/{id}/tasks  – open tasks of the linked Todo project: { todo, tasks }
  * GET    /projects/v1/projects/{id}/report – the last report of the site: { reportedAt, report }
+ * GET    /projects/v1/projects/{id}/password – the panel password: { password } (null – none)
+ * POST   /projects/v1/projects/{id}/password { password } – sets it (encrypted), empty/null removes; returns the project
  * GET    /projects/v1/todo-projects        – Todo's projects, to link one
  * GET    /projects/v1/changed              – everyone: when the list last changed – { changedAt } (the app polls it)
  */
@@ -82,6 +84,30 @@ final class ProjectsController extends Controller
             'callback' => fn (WP_REST_Request $request) => $this->respond($this->projects->report((int) $request['id'])),
             'permission_callback' => [$this, 'permission'],
             'args' => ['id' => ['type' => 'integer', 'required' => true]],
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/projects/(?P<id>\d+)/password', [
+            'args' => ['id' => ['type' => 'integer', 'required' => true]],
+            [
+                'methods' => WP_REST_Server::READABLE,
+                'callback' => function (WP_REST_Request $request) {
+                    $password = $this->projects->password((int) $request['id']);
+                    $response = $this->respond(is_wp_error($password) ? $password : ['password' => $password]);
+
+                    if (!is_wp_error($response)) {
+                        $response->header('Cache-Control', 'no-store');
+                    }
+
+                    return $response;
+                },
+                'permission_callback' => [$this, 'permission'],
+            ],
+            [
+                'methods' => WP_REST_Server::CREATABLE,
+                'callback' => fn (WP_REST_Request $request) => $this->respond($this->projects->setPassword((int) $request['id'], $request['password'])),
+                'permission_callback' => [$this, 'permission'],
+                'args' => ['password' => ['type' => ['string', 'null'], 'maxLength' => 500]],
+            ],
         ]);
 
         register_rest_route(self::NAMESPACE, '/todo-projects', [

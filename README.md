@@ -41,8 +41,11 @@ listy samej tej kategorii w aplikacji (`/projects/{slug}`). Usunięcie kategorii
 | `repo` | adres | repozytorium (GitHub / Bitbucket) |
 | `deploy`, `dev`, `bedrock`, `security`, `acf`, `miModal` | tak/nie | wdrażanie skryptami, środowisko dev (stage), Bedrock, Wordfence, ACF, MI Modal |
 | `localUrl` | adres | wersja lokalna |
+| `adminUrl` | adres | panel (logowanie do WordPressa) produkcji |
+| `stagingUrl`, `stagingAdminUrl` | adres | staging i jego panel |
+| `localAdminUrl` | adres | panel wersji lokalnej |
+| `login` | tekst | login do paneli (hasło osobno, zaszyfrowane – niżej) |
 | `dbSync` | RRRR-MM-DD | ostatnia synchronizacja bazy |
-| `listed` | tak/nie | na publicznej liście (tylko z domeną) |
 | `todoProject` | ID | powiązany projekt Todo (term `todo_project`) |
 | `notes` | tekst | notatki |
 
@@ -54,12 +57,14 @@ Właściciel dostaje przy projekcie `todo`: `{ id, name, color, url, open, overd
 
 | Metoda | Ścieżka | Dostęp | Body |
 | --- | --- | --- | --- |
-| GET | `/projects` | wszyscy | – (niezalogowany: tylko `listed` z domeną, nazwa, kategoria, kolejność i pola z `wp_plugin_projects/public_fields`) |
+| GET | `/projects` | wszyscy | – (niezalogowany: tylko projekty z domeną, nazwa, kategoria, kolejność i pola z `wp_plugin_projects/public_fields`) |
 | POST | `/projects` | właściciel | `{ name, ...pola }` |
 | PATCH | `/projects/{id}` | właściciel | dowolne pola; `null` czyści |
 | DELETE | `/projects/{id}` | właściciel | – (do kosza; projekt Todo zostaje bez zmian) |
 | POST | `/projects/order` | właściciel | `{ ids: [5, 2, 9] }` – te projekty (zwykle jednej kategorii) w tej kolejności; zwraca wszystkie |
 | GET | `/projects/{id}/tasks` | właściciel | – otwarte zadania powiązanego projektu Todo: `{ todo, tasks }` |
+| GET | `/projects/{id}/password` | właściciel | – hasło do paneli: `{ password }` (`null` – brak) |
+| POST | `/projects/{id}/password` | właściciel | `{ password }` – zapisuje zaszyfrowane, puste usuwa; zwraca projekt |
 | GET | `/projects/{id}/report` | właściciel | – ostatni raport strony: `{ reportedAt, report }` |
 | GET | `/todo-projects` | właściciel | – projekty Todo do powiązania |
 | GET | `/changed` | wszyscy | – kiedy lista ostatnio się zmieniła: `{ changedAt }` (projekt, jego pola, raport, kategoria) – aplikacja sprawdza to co kilka sekund |
@@ -80,12 +85,16 @@ i konfiguracja w jego README; na stronach Meden – meden_plugin): `POST /report
 motyw, Bedrock, Wordfence, ACF, MI Modal, użytkownicy (liczba, role, online) i wtyczki (aktywne, do aktualizacji).
 Pola raportowane (wyżej) uzupełniają projekt, cały raport zostaje przy nim (`GET /projects/{id}/report`, okno projektu).
 
-W `.env` strony (token: aplikacja → projekt → Raport):
+W `.env` strony (token: aplikacja → projekt → Raport; ścieżkę MK Core kieruje na kwiatkowski.co):
 
 ```
-PROJECTS_REPORT_URL=https://kwiatkowski.co/wp-json/projects/v1/report
+PROJECTS_REPORT_URL=/wp-json/projects/v1/report
 PROJECTS_REPORT_TOKEN=…
 ```
+
+Hasło do paneli jest w meta `_project_password`, zaszyfrowane (libsodium, klucz z soli `AUTH` strony listy) – sam zrzut
+bazy go nie zdradza; zmiana soli w `.env` sprawia, że zapisanych haseł nie da się odczytać. Lista projektów go nie
+zawiera (tylko `hasPassword`), okno projektu pobiera je osobno.
 
 ## Aplikacja pod `/projects/`
 

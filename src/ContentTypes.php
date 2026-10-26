@@ -23,6 +23,7 @@ final class ContentTypes
     public const META_POSITION = '_project_position';
 
     public const META_TOKEN = '_project_report_token';
+    public const META_PASSWORD = '_project_password';
     public const META_REPORTED_AT = '_project_reported_at';
     public const META_REPORT = '_project_report';
 
