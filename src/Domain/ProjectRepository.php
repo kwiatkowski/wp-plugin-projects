@@ -272,6 +272,27 @@ final class ProjectRepository
     }
 
     /**
+     * Every project with the time of its last report, by name – what a site sees after reporting (`wp projects-report`).
+     *
+     * @return array<int, array{id: int, name: string, reportedAt: string|null}>
+     */
+    public function reportTimes(): array
+    {
+        $projects = array_map(
+            static fn (WP_Post $post): array => [
+                'id' => $post->ID,
+                'name' => html_entity_decode($post->post_title, ENT_QUOTES, 'UTF-8'),
+                'reportedAt' => get_post_meta($post->ID, ContentTypes::META_REPORTED_AT, true) ?: null,
+            ],
+            get_posts(['post_type' => ContentTypes::PROJECT, 'post_status' => 'publish', 'numberposts' => -1, 'no_found_rows' => true]),
+        );
+
+        usort($projects, static fn (array $a, array $b): int => strnatcasecmp($a['name'], $b['name']));
+
+        return $projects;
+    }
+
+    /**
      * The last report of the project's site as it came (users, plugins …), with its time; report null – none yet.
      *
      * @return array{reportedAt: string|null, report: array<string, mixed>|null}|WP_Error

@@ -16,8 +16,9 @@ use WP_REST_Server;
  *
  * Authorization: Bearer {token of the project} (or X-Projects-Token: {token}). Body: { php, engine, version, theme, bedrock, security, acf, miModal,
  * users?, plugins?, pluginUpdates?, environment?, home? } – only the fields in Fields::reported() change the project, the whole
- * report is kept (GET /projects/{id}/report). Answers { ok, project, list, reportedAt, previousReportAt, changes } –
- * changes: what the report changed on the list, [{ what: field|'plugin'|'users'|'online', name?, from, to }].
+ * report is kept (GET /projects/{id}/report). Answers { ok, project, list, reportedAt, previousReportAt, changes, projects } –
+ * changes: what the report changed on the list, [{ what: field|'plugin'|'users'|'online', name?, from, to }];
+ * projects: every project (name, last report, current – the one just reported), for the terminal of the site.
  * No WordPress login: the token alone says which project it is.
  */
 final class ReportController extends Controller
@@ -58,6 +59,11 @@ final class ReportController extends Controller
             'reportedAt' => $project['reportedAt'],
             'previousReportAt' => $project['previousReportAt'],
             'changes' => $project['changes'],
+            // the whole list, so the terminal can show which project this report updated and how fresh the others are
+            'projects' => array_map(
+                static fn (array $item): array => ['name' => $item['name'], 'reportedAt' => $item['reportedAt'], 'current' => $item['id'] === $project['id']],
+                $this->projects->reportTimes(),
+            ),
         ]);
     }
 }
