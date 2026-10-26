@@ -75,6 +75,25 @@ final class AppShell
         ]);
     }
 
+    /** The newest WordPress release (wordpress.org, cached 12 h) – the list marks the sites that run it; null when unknown. */
+    public static function latestWordpress(): ?string
+    {
+        $cached = get_transient('wp_plugin_projects_latest_wordpress');
+
+        if (is_string($cached)) {
+            return $cached ?: null;
+        }
+
+        $response = wp_remote_get('https://api.wordpress.org/core/version-check/1.7/', ['timeout' => 5]);
+        $data = is_wp_error($response) ? null : json_decode(wp_remote_retrieve_body($response), true);
+        $version = (string) ($data['offers'][0]['current'] ?? '');
+
+        // a failed check is remembered for an hour only, so it is retried soon
+        set_transient('wp_plugin_projects_latest_wordpress', $version, $version ? 12 * HOUR_IN_SECONDS : HOUR_IN_SECONDS);
+
+        return $version ?: null;
+    }
+
     /** @return array<string, mixed> */
     private function config(): array
     {
@@ -97,6 +116,7 @@ final class AppShell
             'reportUrl' => esc_url_raw(rest_url('projects/v1/report')),
             'todoUrl' => $manage && class_exists(\MKTodo\App\AppShell::class) ? \MKTodo\App\AppShell::url() : null,
             'publicFields' => Fields::publicFields(),
+            'latestWordpress' => self::latestWordpress(),
             'siteName' => get_bloginfo('name'),
             'homeUrl' => home_url('/'),
             'version' => WP_PLUGIN_PROJECTS_VERSION,
