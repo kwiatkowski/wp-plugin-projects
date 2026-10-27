@@ -48,12 +48,14 @@ final class ReportPuller
         $requests = [];
 
         foreach ($targets as $id => $target) {
-            // a site behind Basic Auth gets its login in Authorization – the token then goes in X-Projects-Token alone
-            $options = $target['auth'] ? ['auth' => $target['auth']] : [];
-            $token = ['X-Projects-Token' => $target['token']] + ($target['auth'] ? [] : ['Authorization' => 'Bearer ' . $target['token']]);
+            // a site behind Basic Auth gets its login in Authorization – the token then goes in X-Projects-Token alone;
+            // the header is set by hand: Requests' `auth` option hooks into curl.before_send, which request_multiple
+            // never fires, so the login would not be sent at all
+            $auth = $target['auth'] ? ['Authorization' => 'Basic ' . base64_encode(implode(':', $target['auth']))] : [];
+            $token = ['X-Projects-Token' => $target['token']] + ($auth ?: ['Authorization' => 'Bearer ' . $target['token']]);
 
-            $requests["home-$id"] = ['url' => $target['url'] . '/', 'options' => $options];
-            $requests["report-$id"] = ['url' => $target['url'] . self::PATH, 'headers' => ['Accept' => 'application/json'] + $token, 'options' => $options];
+            $requests["home-$id"] = ['url' => $target['url'] . '/', 'headers' => $auth];
+            $requests["report-$id"] = ['url' => $target['url'] . self::PATH, 'headers' => ['Accept' => 'application/json'] + $auth + $token];
         }
 
         $responses = $requests ? Requests::request_multiple($requests, [
