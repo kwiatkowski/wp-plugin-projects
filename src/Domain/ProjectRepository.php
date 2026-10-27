@@ -568,6 +568,13 @@ final class ProjectRepository
         }
 
         $project['reportedAt'] = get_post_meta($post->ID, ContentTypes::META_REPORTED_AT, true) ?: null;
+
+        // from the last report: the theme's version and author (the tooltip on the theme), what sent it (on the report)
+        $report = json_decode((string) get_post_meta($post->ID, ContentTypes::META_REPORT, true), true);
+        $project['parentTheme'] = is_array($report) && is_string($report['parentTheme'] ?? null) ? $report['parentTheme'] : null;
+        $project['themeDetails'] = is_array($report) && is_array($report['themeDetails'] ?? null) ? $report['themeDetails'] : null;
+        $project['reporter'] = is_array($report) && is_string($report['reporter'] ?? null) ? $report['reporter'] : null;
+
         $project['token'] = get_post_meta($post->ID, ContentTypes::META_TOKEN, true) ?: null;
         // the password itself only on request (GET /projects/{id}/password) – not in every list
         $project['hasPassword'] = get_post_meta($post->ID, ContentTypes::META_PASSWORD, true) !== '';
