@@ -8,6 +8,7 @@ use MKProjects\App\AppShell;
 use MKProjects\Domain\CategoryRepository;
 use MKProjects\Domain\ChangeMarker;
 use MKProjects\Domain\ProjectRepository;
+use MKProjects\Domain\ReportPuller;
 use MKProjects\Domain\TodoBridge;
 use MKProjects\Rest\CategoriesController;
 use MKProjects\Rest\ProjectsController;
@@ -35,6 +36,10 @@ final class Plugin
         (new ProjectsController($projects, $todo))->register();
         (new CategoriesController($categories))->register();
         (new ReportController($projects))->register();
+
+        // `wp projects-report` on the list's site (MK Core) fetches every other site's report
+        $puller = new ReportPuller($projects);
+        add_filter('mk_core/report/pull', static fn (mixed $pulled, string $ownToken = ''): array => $puller->pull($ownToken), 10, 2);
         (new AppShell())->register();
 
         add_filter('mk_core/dashboard/packages', [self::class, 'dashboardCard']);

@@ -256,11 +256,11 @@ final class ProjectRepository
 
         $data = array_intersect_key($report, array_flip(Fields::reported()));
 
-        // the site checked its home page (homeCode: HTTP code, 0 – no answer): online without an error, else offline;
-        // a site in progress or suspended keeps its status – that one is set by hand
-        if (isset($report['homeCode']) && !in_array($before['status'], ['dev', 'suspended'], true)) {
-            $code = (int) $report['homeCode'];
-            $data['status'] = $code >= 200 && $code < 400 ? 'online' : 'offline';
+        // the home page's HTTP code (0 – no answer) sets online / offline
+        $status = isset($report['homeCode']) ? $this->statusFor($before['status'], (int) $report['homeCode']) : null;
+
+        if ($status !== null) {
+            $data['status'] = $status;
         }
 
         $this->save($post->ID, $data);
@@ -273,6 +273,56 @@ final class ProjectRepository
         $project['changes'] = $this->reportChanges($before, $project, is_array($previous) ? $previous : [], $report);
 
         return $project;
+    }
+
+    /**
+     * The status from the list's own look at the home page, when the site's report didn't come.
+     *
+     * @return array{what: string, from: mixed, to: mixed}|null the change
+     */
+    public function applyHomeCode(int $id, int $code): ?array
+    {
+        $before = get_post_meta($id, Fields::metaKey('status'), true) ?: null;
+        $status = $this->statusFor($before, $code);
+
+        if ($status === null || $status === $before) {
+            return null;
+        }
+
+        $this->save($id, ['status' => $status]);
+
+        return ['what' => 'status', 'from' => $before, 'to' => $status];
+    }
+
+    /** Online when the home page answers without an error (2xx, 3xx), else offline; null – a site in progress or suspended keeps its status (set by hand). */
+    private function statusFor(?string $current, int $code): ?string
+    {
+        if (in_array($current, ['dev', 'suspended'], true)) {
+            return null;
+        }
+
+        return $code >= 200 && $code < 400 ? 'online' : 'offline';
+    }
+
+    /**
+     * Projects whose site the list can ask for its report: a token and a domain – the site's address is the first domain.
+     *
+     * @return array<int, array{id: int, token: string|null, url: string|null}>
+     */
+    public function pullTargets(): array
+    {
+        $posts = get_posts(['post_type' => ContentTypes::PROJECT, 'post_status' => 'publish', 'numberposts' => -1, 'no_found_rows' => true]);
+
+        return array_map(function (WP_Post $post): array {
+            $domains = (array) get_post_meta($post->ID, Fields::metaKey('domains'), true);
+            $domain = trim((string) preg_replace('#^https?://#i', '', (string) ($domains[0] ?? '')), '/');
+
+            return [
+                'id' => $post->ID,
+                'token' => get_post_meta($post->ID, ContentTypes::META_TOKEN, true) ?: null,
+                'url' => $domain !== '' ? 'https://' . $domain : null,
+            ];
+        }, $posts);
     }
 
     /**
