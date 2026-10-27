@@ -42,6 +42,8 @@ final class Fields
         'stagingAdminUrl' => ['type' => 'string', 'format' => 'uri'],
         'localAdminUrl' => ['type' => 'string', 'format' => 'uri'],
         'login' => ['type' => 'string', 'max' => 100],
+        // HTTP Basic Auth in front of the whole site – the list fetches the report with it (its password: META_AUTH_PASSWORD)
+        'authUser' => ['type' => 'string', 'max' => 100],
         'acf' => ['type' => 'boolean', 'reported' => true],
         'miModal' => ['type' => 'boolean', 'reported' => true],
         'todoProject' => ['type' => 'integer'],

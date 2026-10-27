@@ -175,16 +175,20 @@ final class ProjectRepository
         return wp_trash_post($id) ? true : new WP_Error('projects_delete_failed', __('Nie udało się usunąć projektu.', 'wp-plugin-projects'), ['status' => 500]);
     }
 
+    /** The passwords kept encrypted: the panel's and the HTTP Basic Auth one in front of the site. */
+    public const PASSWORDS = ['panel' => ContentTypes::META_PASSWORD, 'auth' => ContentTypes::META_AUTH_PASSWORD];
+
     /**
-     * The panel password, decrypted; null – none (or it can't be read any more: the site's salts changed).
+     * A password (panel – the panel's, auth – Basic Auth's), decrypted; null – none (or it can't be read any more: the
+     * site's salts changed).
      */
-    public function password(int $id): string|null|WP_Error
+    public function password(int $id, string $kind = 'panel'): string|null|WP_Error
     {
         if (!$this->post($id)) {
             return $this->notFound();
         }
 
-        $stored = base64_decode((string) get_post_meta($id, ContentTypes::META_PASSWORD, true), true);
+        $stored = base64_decode((string) get_post_meta($id, self::PASSWORDS[$kind] ?? ContentTypes::META_PASSWORD, true), true);
 
         if (!$stored || strlen($stored) <= SODIUM_CRYPTO_SECRETBOX_NONCEBYTES) {
             return null;
@@ -196,24 +200,25 @@ final class ProjectRepository
     }
 
     /**
-     * Saves the panel password encrypted (libsodium, the key from the site's AUTH salt – a database dump alone doesn't
-     * reveal it); empty or null removes it. Returns the project.
+     * Saves a password (panel / auth) encrypted (libsodium, the key from the site's AUTH salt – a database dump alone
+     * doesn't reveal it); empty or null removes it. Returns the project.
      *
      * @return array<string, mixed>|WP_Error
      */
-    public function setPassword(int $id, ?string $password): array|WP_Error
+    public function setPassword(int $id, ?string $password, string $kind = 'panel'): array|WP_Error
     {
         $post = $this->post($id);
+        $key = self::PASSWORDS[$kind] ?? ContentTypes::META_PASSWORD;
 
         if (!$post) {
             return $this->notFound();
         }
 
         if ($password === null || $password === '') {
-            delete_post_meta($id, ContentTypes::META_PASSWORD);
+            delete_post_meta($id, $key);
         } else {
             $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-            update_post_meta($id, ContentTypes::META_PASSWORD, base64_encode($nonce . sodium_crypto_secretbox(mb_substr($password, 0, 500), $nonce, $this->secretKey())));
+            update_post_meta($id, $key, base64_encode($nonce . sodium_crypto_secretbox(mb_substr($password, 0, 500), $nonce, $this->secretKey())));
         }
 
         return $this->toArray($post);
@@ -299,20 +304,21 @@ final class ProjectRepository
         return ['what' => 'status', 'from' => $before, 'to' => $status];
     }
 
-    /** Online when the home page answers without an error (2xx, 3xx), else offline; null – a site in progress or suspended keeps its status (set by hand). */
+    /** Online when the home page answers without an error (2xx, 3xx – or 401: it works, behind a password), else offline; null – a site in progress or suspended keeps its status (set by hand). */
     private function statusFor(?string $current, int $code): ?string
     {
         if (in_array($current, ['dev', 'suspended'], true)) {
             return null;
         }
 
-        return $code >= 200 && $code < 400 ? 'online' : 'offline';
+        return ($code >= 200 && $code < 400) || $code === 401 ? 'online' : 'offline';
     }
 
     /**
-     * Projects whose site the list can ask for its report: a token and a domain – the site's address is the first domain.
+     * Projects whose site the list can ask for its report: a token and a domain – the site's address is the first domain;
+     * auth – the Basic Auth login and password the site sits behind (null – none).
      *
-     * @return array<int, array{id: int, token: string|null, url: string|null}>
+     * @return array<int, array{id: int, token: string|null, url: string|null, auth: array{0: string, 1: string}|null}>
      */
     public function pullTargets(): array
     {
@@ -326,6 +332,9 @@ final class ProjectRepository
                 'id' => $post->ID,
                 'token' => get_post_meta($post->ID, ContentTypes::META_TOKEN, true) ?: null,
                 'url' => $domain !== '' ? 'https://' . $domain : null,
+                'auth' => ($user = (string) get_post_meta($post->ID, Fields::metaKey('authUser'), true)) !== ''
+                    ? [$user, (string) $this->password($post->ID, 'auth')]
+                    : null,
             ];
         }, $posts);
     }
@@ -562,6 +571,7 @@ final class ProjectRepository
         $project['token'] = get_post_meta($post->ID, ContentTypes::META_TOKEN, true) ?: null;
         // the password itself only on request (GET /projects/{id}/password) – not in every list
         $project['hasPassword'] = get_post_meta($post->ID, ContentTypes::META_PASSWORD, true) !== '';
+        $project['hasAuthPassword'] = get_post_meta($post->ID, ContentTypes::META_AUTH_PASSWORD, true) !== '';
         $project['updatedAt'] = $post->post_modified_gmt !== '0000-00-00 00:00:00' ? gmdate(DATE_ATOM, (int) strtotime($post->post_modified_gmt . ' UTC')) : null;
 
         return $project;

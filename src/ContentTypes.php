@@ -24,6 +24,8 @@ final class ContentTypes
 
     public const META_TOKEN = '_project_report_token';
     public const META_PASSWORD = '_project_password';
+    /** the HTTP Basic Auth password the site sits behind – encrypted like the panel's */
+    public const META_AUTH_PASSWORD = '_project_auth_password';
     public const META_REPORTED_AT = '_project_reported_at';
     public const META_REPORT = '_project_report';
 

@@ -48,11 +48,12 @@ final class ReportPuller
         $requests = [];
 
         foreach ($targets as $id => $target) {
-            $requests["home-$id"] = ['url' => $target['url'] . '/'];
-            $requests["report-$id"] = [
-                'url' => $target['url'] . self::PATH,
-                'headers' => ['Accept' => 'application/json', 'Authorization' => 'Bearer ' . $target['token'], 'X-Projects-Token' => $target['token']],
-            ];
+            // a site behind Basic Auth gets its login in Authorization – the token then goes in X-Projects-Token alone
+            $options = $target['auth'] ? ['auth' => $target['auth']] : [];
+            $token = ['X-Projects-Token' => $target['token']] + ($target['auth'] ? [] : ['Authorization' => 'Bearer ' . $target['token']]);
+
+            $requests["home-$id"] = ['url' => $target['url'] . '/', 'options' => $options];
+            $requests["report-$id"] = ['url' => $target['url'] . self::PATH, 'headers' => ['Accept' => 'application/json'] + $token, 'options' => $options];
         }
 
         $responses = $requests ? Requests::request_multiple($requests, [
@@ -66,7 +67,7 @@ final class ReportPuller
         foreach ($targets as $id => $target) {
             $home = $responses["home-$id"] ?? null;
             $code = $home instanceof Response ? (int) $home->status_code : 0;
-            [$report, $error] = $this->read($responses["report-$id"] ?? null);
+            [$report, $error] = $this->read($responses["report-$id"] ?? null, $target['auth'] !== null);
 
             if ($report !== null) {
                 // the list's own look at the home page counts, not the site's
@@ -95,10 +96,15 @@ final class ReportPuller
      *
      * @return array{0: array<string, mixed>|null, 1: string|null}
      */
-    private function read(mixed $response): array
+    private function read(mixed $response, bool $withAuth): array
     {
         if (!$response instanceof Response) {
             return [null, 'brak odpowiedzi'];
+        }
+
+        // the server's own password prompt, not WordPress's answer
+        if ($response->status_code === 401 && isset($response->headers['www-authenticate'])) {
+            return [null, $withAuth ? 'Basic Auth: zły login lub hasło' : 'strona za hasłem (Basic Auth) – login i hasło w zakładce Dostęp'];
         }
 
         $data = json_decode($response->body, true);
