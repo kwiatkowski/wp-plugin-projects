@@ -241,6 +241,18 @@ final class ProjectRepository
         return $this->find($id);
     }
 
+    /** No token – the site's reports are refused from now on; the last report and its time stay. */
+    public function removeToken(int $id): array|WP_Error
+    {
+        if (!$this->post($id)) {
+            return $this->notFound();
+        }
+
+        delete_post_meta($id, ContentTypes::META_TOKEN);
+
+        return $this->find($id);
+    }
+
     /**
      * Saves what a site reported about itself (only Fields::reported(), and online / offline from homeCode) and stamps the time.
      *

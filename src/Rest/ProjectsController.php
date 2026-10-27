@@ -20,6 +20,7 @@ use WP_REST_Server;
  * PATCH  /projects/v1/projects/{id}        { name?, ...fields } – null clears a field
  * DELETE /projects/v1/projects/{id}        – to the trash
  * POST   /projects/v1/projects/{id}/token  – a new reporter token; returns the project
+ * DELETE /projects/v1/projects/{id}/token  – no token: the site stops reporting (the last report stays); returns the project
  * POST   /projects/v1/projects/order       { ids: [5, 2, 9] } – these projects in this order (one category); returns all
  * GET    /projects/v1/projects/{id}/tasks  – open tasks of the linked Todo project: { todo, tasks }
  * GET    /projects/v1/projects/{id}/report – the last report of the site: { reportedAt, report }
@@ -120,10 +121,17 @@ final class ProjectsController extends Controller
         ]);
 
         register_rest_route(self::NAMESPACE, '/projects/(?P<id>\d+)/token', [
-            'methods' => WP_REST_Server::CREATABLE,
-            'callback' => fn (WP_REST_Request $request) => $this->respond($this->projects->regenerateToken((int) $request['id'])),
-            'permission_callback' => [$this, 'permission'],
             'args' => ['id' => ['type' => 'integer', 'required' => true]],
+            [
+                'methods' => WP_REST_Server::CREATABLE,
+                'callback' => fn (WP_REST_Request $request) => $this->respond($this->projects->regenerateToken((int) $request['id'])),
+                'permission_callback' => [$this, 'permission'],
+            ],
+            [
+                'methods' => WP_REST_Server::DELETABLE,
+                'callback' => fn (WP_REST_Request $request) => $this->respond($this->projects->removeToken((int) $request['id'])),
+                'permission_callback' => [$this, 'permission'],
+            ],
         ]);
 
         register_rest_route(self::NAMESPACE, '/projects/(?P<id>\d+)', [
