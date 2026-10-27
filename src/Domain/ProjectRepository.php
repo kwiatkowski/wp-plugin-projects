@@ -258,7 +258,7 @@ final class ProjectRepository
 
         // the site checked its home page (homeCode: HTTP code, 0 – no answer): online without an error, else offline;
         // a site in progress or suspended keeps its status – that one is set by hand
-        if (isset($report['homeCode']) && in_array($before['status'], ['online', 'offline'], true)) {
+        if (isset($report['homeCode']) && !in_array($before['status'], ['dev', 'suspended'], true)) {
             $code = (int) $report['homeCode'];
             $data['status'] = $code >= 200 && $code < 400 ? 'online' : 'offline';
         }
