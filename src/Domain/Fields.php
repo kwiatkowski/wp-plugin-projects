@@ -30,7 +30,7 @@ final class Fields
         'version' => ['type' => 'string', 'max' => 20, 'reported' => true],
         'theme' => ['type' => 'string', 'max' => 100, 'reported' => true],
         'repo' => ['type' => 'string', 'format' => 'uri', 'reported' => true],
-        'deploy' => ['type' => 'boolean'],
+        'deploy' => ['type' => 'boolean', 'reported' => true],
         'dev' => ['type' => 'boolean'],
         'bedrock' => ['type' => 'boolean', 'reported' => true],
         'security' => ['type' => 'boolean', 'reported' => true],

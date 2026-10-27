@@ -273,6 +273,12 @@ final class ProjectRepository
 
         $data = array_intersect_key($report, array_flip(Fields::reported()));
 
+        // deploy – git on production: the report brings its origin (null without git); an older reporter without
+        // `repo` leaves it alone
+        if (array_key_exists('repo', $report)) {
+            $data['deploy'] = !empty($report['repo']);
+        }
+
         // a site without git (or an older reporter) doesn't clear the repository typed in by hand
         if (empty($data['repo'])) {
             unset($data['repo']);
