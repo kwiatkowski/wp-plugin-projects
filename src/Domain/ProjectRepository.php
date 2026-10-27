@@ -237,7 +237,7 @@ final class ProjectRepository
     }
 
     /**
-     * Saves what a site reported about itself (only Fields::reported()) and stamps the time.
+     * Saves what a site reported about itself (only Fields::reported(), and online / offline from homeCode) and stamps the time.
      *
      * @param array<string, mixed> $report
      * @return array<string, mixed>|WP_Error the project, with `previousReportAt` and `changes` – what the report changed
@@ -254,7 +254,16 @@ final class ProjectRepository
         $before = $this->toArray($post);
         $previous = json_decode((string) get_post_meta($post->ID, ContentTypes::META_REPORT, true), true);
 
-        $this->save($post->ID, array_intersect_key($report, array_flip(Fields::reported())));
+        $data = array_intersect_key($report, array_flip(Fields::reported()));
+
+        // the site checked its home page (homeCode: HTTP code, 0 – no answer): online without an error, else offline;
+        // a site in progress or suspended keeps its status – that one is set by hand
+        if (isset($report['homeCode']) && in_array($before['status'], ['online', 'offline'], true)) {
+            $code = (int) $report['homeCode'];
+            $data['status'] = $code >= 200 && $code < 400 ? 'online' : 'offline';
+        }
+
+        $this->save($post->ID, $data);
         update_post_meta($post->ID, ContentTypes::META_REPORTED_AT, gmdate(DATE_ATOM));
         // the whole report (plugins, environment …) for a closer look later
         update_post_meta($post->ID, ContentTypes::META_REPORT, wp_slash((string) wp_json_encode($report, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)));
@@ -280,7 +289,7 @@ final class ProjectRepository
     {
         $changes = [];
 
-        foreach (Fields::reported() as $field) {
+        foreach ([...Fields::reported(), 'status'] as $field) {
             if ($before[$field] !== $after[$field]) {
                 $changes[] = ['what' => $field, 'from' => $before[$field], 'to' => $after[$field]];
             }

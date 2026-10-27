@@ -14,7 +14,7 @@ use WP_REST_Server;
 /**
  * POST /projects/v1/report – a site reports about itself (the `report` module of MK Core).
  *
- * Authorization: Bearer {token of the project} (or X-Projects-Token: {token}). Body: { php, engine, version, theme, bedrock, security, acf, miModal,
+ * Authorization: Bearer {token of the project} (or X-Projects-Token: {token}). Body: { homeCode, php, engine, version, theme, bedrock, security, acf, miModal,
  * users?, plugins?, pluginUpdates?, environment?, home? } – only the fields in Fields::reported() change the project, the whole
  * report is kept (GET /projects/{id}/report). Answers { ok, project, list, reportedAt, previousReportAt, changes, projects } –
  * changes: what the report changed on the list, [{ what: field|'plugin'|'users'|'online', name?, from, to }];
