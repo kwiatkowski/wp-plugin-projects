@@ -29,7 +29,7 @@ final class Fields
         'engine' => ['type' => 'string', 'max' => 50, 'reported' => true],
         'version' => ['type' => 'string', 'max' => 20, 'reported' => true],
         'theme' => ['type' => 'string', 'max' => 100, 'reported' => true],
-        'repo' => ['type' => 'string', 'format' => 'uri'],
+        'repo' => ['type' => 'string', 'format' => 'uri', 'reported' => true],
         'deploy' => ['type' => 'boolean'],
         'dev' => ['type' => 'boolean'],
         'bedrock' => ['type' => 'boolean', 'reported' => true],

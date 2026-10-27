@@ -256,6 +256,11 @@ final class ProjectRepository
 
         $data = array_intersect_key($report, array_flip(Fields::reported()));
 
+        // a site without git (or an older reporter) doesn't clear the repository typed in by hand
+        if (empty($data['repo'])) {
+            unset($data['repo']);
+        }
+
         // the home page's HTTP code (0 – no answer) sets online / offline
         $status = isset($report['homeCode']) ? $this->statusFor($before['status'], (int) $report['homeCode']) : null;
 
