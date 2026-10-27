@@ -102,12 +102,13 @@ final class ReportPuller
             return [null, 'brak odpowiedzi'];
         }
 
-        // the server's own password prompt, not WordPress's answer
-        if ($response->status_code === 401 && isset($response->headers['www-authenticate'])) {
+        $data = json_decode($response->body, true);
+
+        // the server's own password prompt, not WordPress's answer – some servers (LiteSpeed) add the Basic Auth
+        // header to WordPress's own 401 too, so a REST error in the body means the password got through
+        if ($response->status_code === 401 && isset($response->headers['www-authenticate']) && !isset($data['code'])) {
             return [null, $withAuth ? 'Basic Auth: zły login lub hasło' : 'strona za hasłem (Basic Auth) – login i hasło w zakładce Dostęp'];
         }
-
-        $data = json_decode($response->body, true);
 
         return match (true) {
             $response->status_code === 200 && is_array($data) => [$data, null],
