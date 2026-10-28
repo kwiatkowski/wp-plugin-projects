@@ -176,7 +176,7 @@ final class ProjectRepository
     }
 
     /** The passwords kept encrypted: the panel's and the HTTP Basic Auth one in front of the site. */
-    public const PASSWORDS = ['panel' => ContentTypes::META_PASSWORD, 'auth' => ContentTypes::META_AUTH_PASSWORD];
+    public const PASSWORDS = ['panel' => ContentTypes::META_PASSWORD, 'auth' => ContentTypes::META_AUTH_PASSWORD, 'staging' => ContentTypes::META_STAGING_AUTH_PASSWORD];
 
     /**
      * A password (panel – the panel's, auth – Basic Auth's), decrypted; null – none (or it can't be read any more: the
@@ -345,6 +345,12 @@ final class ProjectRepository
         return array_map([$this, 'target'], $posts);
     }
 
+    /** What the staging answered (0 – nothing), when the list asked. */
+    public function applyStaging(int $id, int $code): void
+    {
+        update_post_meta($id, ContentTypes::META_STAGING, wp_slash((string) wp_json_encode(['code' => $code, 'checkedAt' => gmdate(DATE_ATOM)])));
+    }
+
     /** Keeps what SslChecker found for the project. */
     public function applySsl(int $id, array $ssl): void
     {
@@ -363,9 +369,11 @@ final class ProjectRepository
         return $post ? $this->target($post) : null;
     }
 
-    /** @return array{id: int, token: string|null, url: string|null, auth: array{0: string, 1: string}|null} */
+    /** @return array{id: int, token: string|null, url: string|null, auth: array{0: string, 1: string}|null, staging: string|null, stagingAuth: array{0: string, 1: string}|null} */
     private function target(WP_Post $post): array
     {
+        $staging = trim((string) get_post_meta($post->ID, Fields::metaKey('stagingUrl'), true));
+
         $domains = (array) get_post_meta($post->ID, Fields::metaKey('domains'), true);
         $domain = trim((string) preg_replace('#^https?://#i', '', (string) ($domains[0] ?? '')), '/');
 
@@ -375,6 +383,10 @@ final class ProjectRepository
             'url' => $domain !== '' ? 'https://' . $domain : null,
             'auth' => ($user = (string) get_post_meta($post->ID, Fields::metaKey('authUser'), true)) !== ''
                 ? [$user, (string) $this->password($post->ID, 'auth')]
+                : null,
+            'staging' => $staging !== '' ? $staging : null,
+            'stagingAuth' => ($stagingUser = (string) get_post_meta($post->ID, Fields::metaKey('stagingAuthUser'), true)) !== ''
+                ? [$stagingUser, (string) $this->password($post->ID, 'staging')]
                 : null,
         ];
     }
@@ -636,6 +648,9 @@ final class ProjectRepository
         // the password itself only on request (GET /projects/{id}/password) – not in every list
         $project['hasPassword'] = get_post_meta($post->ID, ContentTypes::META_PASSWORD, true) !== '';
         $project['hasAuthPassword'] = get_post_meta($post->ID, ContentTypes::META_AUTH_PASSWORD, true) !== '';
+        $project['hasStagingAuthPassword'] = get_post_meta($post->ID, ContentTypes::META_STAGING_AUTH_PASSWORD, true) !== '';
+        $staging = json_decode((string) get_post_meta($post->ID, ContentTypes::META_STAGING, true), true);
+        $project['staging'] = is_array($staging) ? $staging : null;
         $project['updatedAt'] = $post->post_modified_gmt !== '0000-00-00 00:00:00' ? gmdate(DATE_ATOM, (int) strtotime($post->post_modified_gmt . ' UTC')) : null;
 
         return $project;

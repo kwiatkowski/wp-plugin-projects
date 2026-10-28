@@ -44,6 +44,8 @@ final class Fields
         'login' => ['type' => 'string', 'max' => 100],
         // HTTP Basic Auth in front of the whole site – the list fetches the report with it (its password: META_AUTH_PASSWORD)
         'authUser' => ['type' => 'string', 'max' => 100],
+        // staging behind HTTP Basic Auth – the list checks it with these (the password apart, encrypted)
+        'stagingAuthUser' => ['type' => 'string', 'max' => 100],
         'acf' => ['type' => 'boolean', 'reported' => true],
         'miModal' => ['type' => 'boolean', 'reported' => true],
         'todoProject' => ['type' => 'integer'],

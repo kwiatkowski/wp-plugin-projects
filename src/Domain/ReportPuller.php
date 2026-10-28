@@ -34,7 +34,9 @@ final class ReportPuller
         $targets = [];
         $results = [];
 
-        foreach ($this->projects->pullTargets() as $target) {
+        $all = $this->projects->pullTargets();
+
+        foreach ($all as $target) {
             // the certificate of every site with a domain – a token isn't needed for it
             if ($target['url'] !== null) {
                 $this->projects->applySsl($target['id'], $this->ssl->check((string) parse_url($target['url'], PHP_URL_HOST)));
@@ -53,6 +55,18 @@ final class ReportPuller
         }
 
         $requests = [];
+        $stagings = [];
+
+        // every staging – with its own Basic Auth login – answers or not; a token isn't needed for it
+        foreach ($all as $target) {
+            if ($target['staging'] !== null) {
+                $stagings[] = $target['id'];
+                $requests["staging-{$target['id']}"] = [
+                    'url' => $target['staging'],
+                    'headers' => $target['stagingAuth'] ? ['Authorization' => 'Basic ' . base64_encode(implode(':', $target['stagingAuth']))] : [],
+                ];
+            }
+        }
 
         foreach ($targets as $id => $target) {
             // a site behind Basic Auth gets its login in Authorization – the token then goes in X-Projects-Token alone;
@@ -72,6 +86,11 @@ final class ReportPuller
             'verify' => ABSPATH . WPINC . '/certificates/ca-bundle.crt',
             'useragent' => 'wp-plugin-projects/' . WP_PLUGIN_PROJECTS_VERSION,
         ]) : [];
+
+        foreach ($stagings as $id) {
+            $staging = $responses["staging-$id"] ?? null;
+            $this->projects->applyStaging($id, $staging instanceof Response ? (int) $staging->status_code : 0);
+        }
 
         foreach ($targets as $id => $target) {
             $home = $responses["home-$id"] ?? null;
