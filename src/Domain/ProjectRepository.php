@@ -592,6 +592,14 @@ final class ProjectRepository
         $project['parentTheme'] = is_array($report) && is_string($report['parentTheme'] ?? null) ? $report['parentTheme'] : null;
         $project['themeDetails'] = is_array($report) && is_array($report['themeDetails'] ?? null) ? $report['themeDetails'] : null;
         $project['reporter'] = is_array($report) && is_string($report['reporter'] ?? null) ? $report['reporter'] : null;
+        // the plugins waiting for an update – the report's dot turns orange and lists them
+        $project['updates'] = array_values(array_map(
+            static fn (array $plugin): array => ['name' => (string) ($plugin['name'] ?? ''), 'version' => (string) ($plugin['version'] ?? ''), 'update' => (string) $plugin['update']],
+            array_filter(
+                is_array($report) && is_array($report['plugins'] ?? null) ? $report['plugins'] : [],
+                static fn (mixed $plugin): bool => is_array($plugin) && !empty($plugin['update']),
+            ),
+        ));
 
         $project['token'] = get_post_meta($post->ID, ContentTypes::META_TOKEN, true) ?: null;
         // the password itself only on request (GET /projects/{id}/password) – not in every list
