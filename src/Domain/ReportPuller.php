@@ -13,10 +13,20 @@ use WpOrg\Requests\Response;
  * (MK Core's or plugin_meden's report module answers it) and a look at the home page – every site at once.
  * `wp projects-report` on the list's site runs it (filter `mk_core/report/pull`), so the cron there keeps all of them
  * fresh. The home page's code sets online / offline even when the report doesn't come (a site that breaks entirely).
+ *
+ * The cron (every 5 minutes) pulls everything – the reports, the certificates – once an hour (fullDue()); in between
+ * only check() – the home pages and the stagings: a site that goes down shows up within minutes, and the sites don't
+ * build a report 288 times a day.
  */
 final class ReportPuller
 {
     public const PATH = '/wp-json/projects-report/v1/report';
+
+    /** a full pull from the cron this often – a status check in between */
+    private const FULL_EVERY = HOUR_IN_SECONDS;
+    /** a cron run a bit early still counts – every 5 minutes, it would otherwise miss the hour by seconds */
+    private const SLACK = 5 * MINUTE_IN_SECONDS;
+    private const LAST_FULL = 'wp_plugin_projects_last_full_pull';
 
     public function __construct(
         private readonly ProjectRepository $projects,
@@ -32,8 +42,34 @@ final class ReportPuller
      */
     public function pull(string $ownToken = ''): array
     {
-        $results = $this->run($this->projects->pullTargets(), $ownToken);
+        update_option(self::LAST_FULL, time(), false);
 
+        return $this->rows($this->run($this->projects->pullTargets(), $ownToken));
+    }
+
+    /**
+     * The status check between the full pulls: only the home pages (online / offline) and the stagings – nothing asked
+     * of the sites' reports, no certificates. Rows as pull() gives them; ok is null (no report asked for).
+     *
+     * @return array<int, array{name: string, reportedAt: string|null, ok: bool|null, error: string|null, changes: array<int, array<string, mixed>>}>
+     */
+    public function check(): array
+    {
+        return $this->rows($this->run($this->projects->pullTargets(), '', false));
+    }
+
+    /** whether the cron's next run should pull everything – an hour since the last full pull */
+    public function fullDue(): bool
+    {
+        return time() - (int) get_option(self::LAST_FULL, 0) >= self::FULL_EVERY - self::SLACK;
+    }
+
+    /**
+     * @param array<int, array{ok: bool|null, error: string|null, changes: array<int, array<string, mixed>>}> $results
+     * @return array<int, array{name: string, reportedAt: string|null, ok: bool|null, error: string|null, changes: array<int, array<string, mixed>>}>
+     */
+    private function rows(array $results): array
+    {
         return array_map(
             static fn (array $project): array => ['name' => $project['name'], 'reportedAt' => $project['reportedAt']] + ($results[$project['id']] ?? ['ok' => null, 'error' => null, 'changes' => []]),
             $this->projects->reportTimes(),
@@ -62,18 +98,19 @@ final class ReportPuller
 
     /**
      * Pulls the given sites at once: their certificates, stagings, home pages and reports – keyed by the project's id.
+     * Without $reports only the stagings and the home pages.
      *
      * @param array<int, array<string, mixed>> $all as ProjectRepository::pullTargets() gives them
      * @return array<int, array{ok: bool|null, error: string|null, changes: array<int, array<string, mixed>>}>
      */
-    private function run(array $all, string $ownToken = ''): array
+    private function run(array $all, string $ownToken = '', bool $reports = true): array
     {
         $targets = [];
         $results = [];
 
         foreach ($all as $target) {
             // the certificate of every site with a domain – a token isn't needed for it
-            if ($target['url'] !== null) {
+            if ($reports && $target['url'] !== null) {
                 $this->projects->applySsl($target['id'], $this->ssl->check((string) parse_url($target['url'], PHP_URL_HOST)));
             }
 
@@ -111,7 +148,10 @@ final class ReportPuller
             $token = ['X-Projects-Token' => $target['token']] + ($auth ?: ['Authorization' => 'Bearer ' . $target['token']]);
 
             $requests["home-$id"] = ['url' => $target['url'] . '/', 'headers' => $auth];
-            $requests["report-$id"] = ['url' => $target['url'] . self::PATH, 'headers' => ['Accept' => 'application/json'] + $auth + $token];
+
+            if ($reports) {
+                $requests["report-$id"] = ['url' => $target['url'] . self::PATH, 'headers' => ['Accept' => 'application/json'] + $auth + $token];
+            }
         }
 
         $responses = $requests ? Requests::request_multiple($requests, [
@@ -130,6 +170,14 @@ final class ReportPuller
         foreach ($targets as $id => $target) {
             $home = $responses["home-$id"] ?? null;
             $code = $home instanceof Response ? (int) $home->status_code : 0;
+
+            // the status check: the home page alone – no report was asked for
+            if (!$reports) {
+                $change = $this->projects->applyHomeCode($id, $code);
+                $results[$id] = ['ok' => null, 'error' => $code ? null : 'brak odpowiedzi', 'changes' => $change ? [$change] : []];
+                continue;
+            }
+
             [$report, $error] = $this->read($responses["report-$id"] ?? null, $target['auth'] !== null);
 
             if ($report !== null) {

@@ -50,6 +50,9 @@ final class Plugin
         $puller = new ReportPuller($projects);
         (new PullController($puller))->register();
         add_filter('mk_core/report/pull', static fn (mixed $pulled, string $ownToken = ''): array => $puller->pull($ownToken), 10, 2);
+        // the cron runs it every 5 minutes: everything once an hour, only the home pages and stagings in between
+        add_filter('mk_core/report/full_due', static fn (): bool => $puller->fullDue());
+        add_filter('mk_core/report/check', static fn (): array => $puller->check());
         (new AppShell())->register();
 
         add_filter('mk_core/dashboard/packages', [self::class, 'dashboardCard']);
