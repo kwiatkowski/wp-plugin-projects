@@ -17,8 +17,10 @@ final class ReportPuller
 {
     public const PATH = '/wp-json/projects-report/v1/report';
 
-    public function __construct(private readonly ProjectRepository $projects)
-    {
+    public function __construct(
+        private readonly ProjectRepository $projects,
+        private readonly SslChecker $ssl = new SslChecker(),
+    ) {
     }
 
     /**
@@ -33,6 +35,11 @@ final class ReportPuller
         $results = [];
 
         foreach ($this->projects->pullTargets() as $target) {
+            // the certificate of every site with a domain – a token isn't needed for it
+            if ($target['url'] !== null) {
+                $this->projects->applySsl($target['id'], $this->ssl->check((string) parse_url($target['url'], PHP_URL_HOST)));
+            }
+
             $results[$target['id']] = match (true) {
                 $target['token'] === null => ['ok' => false, 'error' => 'brak tokenu', 'changes' => []],
                 $target['url'] === null => ['ok' => false, 'error' => 'brak domeny', 'changes' => []],

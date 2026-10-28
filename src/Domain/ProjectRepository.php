@@ -345,6 +345,12 @@ final class ProjectRepository
         return array_map([$this, 'target'], $posts);
     }
 
+    /** Keeps what SslChecker found for the project. */
+    public function applySsl(int $id, array $ssl): void
+    {
+        update_post_meta($id, ContentTypes::META_SSL, wp_slash((string) wp_json_encode($ssl, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)));
+    }
+
     /**
      * One project's site, as pullTargets() gives it – null when there is no such project.
      *
@@ -621,6 +627,10 @@ final class ProjectRepository
                 static fn (mixed $plugin): bool => is_array($plugin) && !empty($plugin['update']),
             ),
         ));
+
+        // the TLS certificate as the list saw it at its last pull: until when, by whom, whether it is fine
+        $ssl = json_decode((string) get_post_meta($post->ID, ContentTypes::META_SSL, true), true);
+        $project['ssl'] = is_array($ssl) ? $ssl : null;
 
         $project['token'] = get_post_meta($post->ID, ContentTypes::META_TOKEN, true) ?: null;
         // the password itself only on request (GET /projects/{id}/password) – not in every list

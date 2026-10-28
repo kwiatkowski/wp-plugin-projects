@@ -28,6 +28,8 @@ final class ContentTypes
     public const META_AUTH_PASSWORD = '_project_auth_password';
     public const META_REPORTED_AT = '_project_reported_at';
     public const META_REPORT = '_project_report';
+    /** the site's TLS certificate as the list last saw it (SslChecker), JSON */
+    public const META_SSL = '_project_ssl';
 
     public function register(): void
     {
