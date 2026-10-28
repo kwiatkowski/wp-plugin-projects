@@ -9,10 +9,12 @@ use MKProjects\Domain\CategoryRepository;
 use MKProjects\Domain\ChangeMarker;
 use MKProjects\Domain\ProjectRepository;
 use MKProjects\Domain\ReportPuller;
+use MKProjects\Domain\SiteUpdater;
 use MKProjects\Domain\TodoBridge;
 use MKProjects\Rest\CategoriesController;
 use MKProjects\Rest\ProjectsController;
 use MKProjects\Rest\ReportController;
+use MKProjects\Rest\UpdateController;
 
 /**
  * Wires the plugin together.
@@ -36,6 +38,7 @@ final class Plugin
         (new ProjectsController($projects, $todo))->register();
         (new CategoriesController($categories))->register();
         (new ReportController($projects))->register();
+        (new UpdateController(new SiteUpdater($projects)))->register();
 
         // `wp projects-report` on the list's site (MK Core) fetches every other site's report
         $puller = new ReportPuller($projects);

@@ -342,19 +342,35 @@ final class ProjectRepository
     {
         $posts = get_posts(['post_type' => ContentTypes::PROJECT, 'post_status' => 'publish', 'numberposts' => -1, 'no_found_rows' => true]);
 
-        return array_map(function (WP_Post $post): array {
-            $domains = (array) get_post_meta($post->ID, Fields::metaKey('domains'), true);
-            $domain = trim((string) preg_replace('#^https?://#i', '', (string) ($domains[0] ?? '')), '/');
+        return array_map([$this, 'target'], $posts);
+    }
 
-            return [
-                'id' => $post->ID,
-                'token' => get_post_meta($post->ID, ContentTypes::META_TOKEN, true) ?: null,
-                'url' => $domain !== '' ? 'https://' . $domain : null,
-                'auth' => ($user = (string) get_post_meta($post->ID, Fields::metaKey('authUser'), true)) !== ''
-                    ? [$user, (string) $this->password($post->ID, 'auth')]
-                    : null,
-            ];
-        }, $posts);
+    /**
+     * One project's site, as pullTargets() gives it – null when there is no such project.
+     *
+     * @return array{id: int, token: string|null, url: string|null, auth: array{0: string, 1: string}|null}|null
+     */
+    public function pullTarget(int $id): ?array
+    {
+        $post = $this->post($id);
+
+        return $post ? $this->target($post) : null;
+    }
+
+    /** @return array{id: int, token: string|null, url: string|null, auth: array{0: string, 1: string}|null} */
+    private function target(WP_Post $post): array
+    {
+        $domains = (array) get_post_meta($post->ID, Fields::metaKey('domains'), true);
+        $domain = trim((string) preg_replace('#^https?://#i', '', (string) ($domains[0] ?? '')), '/');
+
+        return [
+            'id' => $post->ID,
+            'token' => get_post_meta($post->ID, ContentTypes::META_TOKEN, true) ?: null,
+            'url' => $domain !== '' ? 'https://' . $domain : null,
+            'auth' => ($user = (string) get_post_meta($post->ID, Fields::metaKey('authUser'), true)) !== ''
+                ? [$user, (string) $this->password($post->ID, 'auth')]
+                : null,
+        ];
     }
 
     /**
