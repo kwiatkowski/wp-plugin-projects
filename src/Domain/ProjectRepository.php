@@ -636,6 +636,17 @@ final class ProjectRepository
             is_array($report) && is_array($report['translationUpdates'] ?? null) ? $report['translationUpdates'] : [],
             'is_array',
         ));
+        // where the site uses reCAPTCHA (CF7, Wordfence's login): the site key, the secret's SHA-256 – the dialog checks
+        // them against the project's keys
+        $project['recaptcha'] = array_values(array_map(
+            static fn (array $place): array => [
+                'place' => (string) ($place['place'] ?? ''),
+                'enabled' => (bool) ($place['enabled'] ?? false),
+                'siteKey' => is_string($place['siteKey'] ?? null) ? $place['siteKey'] : null,
+                'secretHash' => is_string($place['secretHash'] ?? null) ? $place['secretHash'] : null,
+            ],
+            array_filter(is_array($report) && is_array($report['recaptcha'] ?? null) ? $report['recaptcha'] : [], 'is_array'),
+        ));
         // the plugins waiting for an update – the report's dot turns orange and lists them
         $project['updates'] = array_values(array_map(
             static fn (array $plugin): array => ['name' => (string) ($plugin['name'] ?? ''), 'version' => (string) ($plugin['version'] ?? ''), 'update' => (string) $plugin['update']],
