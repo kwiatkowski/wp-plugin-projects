@@ -12,6 +12,7 @@ use MKProjects\Domain\ReportPuller;
 use MKProjects\Domain\SiteUpdater;
 use MKProjects\Domain\TodoBridge;
 use MKProjects\Rest\CategoriesController;
+use MKProjects\Rest\ColumnsController;
 use MKProjects\Rest\ProjectsController;
 use MKProjects\Rest\PullController;
 use MKProjects\Rest\ReportController;
@@ -38,6 +39,7 @@ final class Plugin
         (new ChangeMarker())->register();
         (new ProjectsController($projects, $todo))->register();
         (new CategoriesController($categories))->register();
+        (new ColumnsController())->register();
         (new ReportController($projects))->register();
         (new UpdateController(new SiteUpdater($projects)))->register();
 

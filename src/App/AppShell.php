@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MKProjects\App;
 
+use MKProjects\Domain\Columns;
 use MKProjects\Domain\Fields;
 use MKProjects\Plugin;
 use WP;
@@ -147,6 +148,8 @@ final class AppShell
             'reportUrl' => (string) wp_parse_url(rest_url('projects/v1/report'), PHP_URL_PATH),
             'todoUrl' => $manage && class_exists(\MKTodo\App\AppShell::class) ? \MKTodo\App\AppShell::url() : null,
             'publicFields' => Fields::publicFields(),
+            // the columns shown: the owner's own (null – all), the public list's
+            'columns' => ['mine' => $manage ? Columns::mine(get_current_user_id()) : null, 'public' => Columns::publicColumns()],
             'latestWordpress' => self::latestWordpress(),
             'wordpressVersions' => $manage ? self::wordpressVersions() : [],
             'siteName' => get_bloginfo('name'),

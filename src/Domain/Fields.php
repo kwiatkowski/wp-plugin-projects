@@ -55,9 +55,6 @@ final class Fields
         'notes' => ['type' => 'string', 'max' => 5000, 'multiline' => true],
     ];
 
-    /** What everyone sees on the public list (filter `wp_plugin_projects/public_fields`). */
-    public const PUBLIC = ['domains', 'status', 'engine', 'version', 'theme'];
-
     public static function metaKey(string $field): string
     {
         return '_project_' . strtolower((string) preg_replace('/[A-Z]/', '_$0', $field));
@@ -69,11 +66,16 @@ final class Fields
         return array_keys(array_filter(self::ALL, static fn (array $field): bool => !empty($field['reported'])));
     }
 
-    /** @return string[] */
+    /**
+     * What everyone sees on the public list – the fields of the columns the owner made public (filter
+     * `wp_plugin_projects/public_fields`).
+     *
+     * @return string[]
+     */
     public static function publicFields(): array
     {
         return array_values(array_intersect(
-            (array) apply_filters('wp_plugin_projects/public_fields', self::PUBLIC),
+            (array) apply_filters('wp_plugin_projects/public_fields', Columns::publicFields()),
             array_keys(self::ALL),
         ));
     }
