@@ -52,7 +52,7 @@ final class SiteUpdater
 
         return match (true) {
             $code === 200 && is_array($data) => $data,
-            $code === 404 => new WP_Error('projects_update_unavailable', 'Strona nie ma aktualizacji przez Composer – zaktualizuj plugin_meden do 1.11.0.', ['status' => 409]),
+            $code === 404 => new WP_Error('projects_update_unavailable', 'Strona nie ma aktualizacji z listy – zaktualizuj plugin_meden do 1.12.0.', ['status' => 409]),
             $code === 401 || $code === 403 => new WP_Error('projects_update_failed', 'Strona odrzuciła token.', ['status' => 502]),
             is_array($data) && isset($data['message']) => new WP_Error('projects_update_failed', (string) $data['message'], ['status' => $code >= 400 && $code < 500 ? $code : 502]),
             default => new WP_Error('projects_update_failed', "Strona odpowiedziała HTTP $code.", ['status' => 502]),
