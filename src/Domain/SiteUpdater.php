@@ -7,7 +7,7 @@ namespace MKProjects\Domain;
 use WP_Error;
 
 /**
- * "Aktualizuj przez Composer": the list asks the site to update itself – plugin_meden's Updater
+ * "Aktualizuj przez Composer": the list asks the site to update itself – plugin_meden's Updater or MK Core's update module
  * ({site}/wp-json/projects-report/v1/update, the project's token, Basic Auth when the site sits behind it). POST starts
  * it, GET says how it goes: { available, reason, state: idle|running|done|nothing|failed, startedAt, finishedAt, log }.
  */
@@ -55,7 +55,7 @@ final class SiteUpdater
 
         return match (true) {
             $code === 200 && is_array($data) => $data,
-            $code === 404 => new WP_Error('projects_update_unavailable', 'Strona nie ma aktualizacji z listy – zaktualizuj plugin_meden do 1.14.0.', ['status' => 409]),
+            $code === 404 => new WP_Error('projects_update_unavailable', 'Strona nie ma aktualizacji z listy – zaktualizuj plugin_meden (1.14.0+) albo MK Core (2026.10.28+).', ['status' => 409]),
             $code === 401 || $code === 403 => new WP_Error('projects_update_failed', 'Strona odrzuciła token.', ['status' => 502]),
             is_array($data) && isset($data['message']) => new WP_Error('projects_update_failed', (string) $data['message'], ['status' => $code >= 400 && $code < 500 ? $code : 502]),
             default => new WP_Error('projects_update_failed', "Strona odpowiedziała HTTP $code.", ['status' => 502]),
