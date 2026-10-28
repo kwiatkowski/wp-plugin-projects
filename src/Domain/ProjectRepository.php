@@ -175,8 +175,13 @@ final class ProjectRepository
         return wp_trash_post($id) ? true : new WP_Error('projects_delete_failed', __('Nie udało się usunąć projektu.', 'wp-plugin-projects'), ['status' => 500]);
     }
 
-    /** The passwords kept encrypted: the panel's and the HTTP Basic Auth one in front of the site. */
-    public const PASSWORDS = ['panel' => ContentTypes::META_PASSWORD, 'auth' => ContentTypes::META_AUTH_PASSWORD, 'staging' => ContentTypes::META_STAGING_AUTH_PASSWORD];
+    /** The secrets kept encrypted: the panel's password, the HTTP Basic Auth ones (the site's, the staging's), reCAPTCHA's secret key. */
+    public const PASSWORDS = [
+        'panel' => ContentTypes::META_PASSWORD,
+        'auth' => ContentTypes::META_AUTH_PASSWORD,
+        'staging' => ContentTypes::META_STAGING_AUTH_PASSWORD,
+        'recaptcha' => ContentTypes::META_RECAPTCHA_SECRET,
+    ];
 
     /**
      * A password (panel – the panel's, auth – Basic Auth's), decrypted; null – none (or it can't be read any more: the
@@ -649,6 +654,7 @@ final class ProjectRepository
         $project['hasPassword'] = get_post_meta($post->ID, ContentTypes::META_PASSWORD, true) !== '';
         $project['hasAuthPassword'] = get_post_meta($post->ID, ContentTypes::META_AUTH_PASSWORD, true) !== '';
         $project['hasStagingAuthPassword'] = get_post_meta($post->ID, ContentTypes::META_STAGING_AUTH_PASSWORD, true) !== '';
+        $project['hasRecaptchaSecret'] = get_post_meta($post->ID, ContentTypes::META_RECAPTCHA_SECRET, true) !== '';
         $staging = json_decode((string) get_post_meta($post->ID, ContentTypes::META_STAGING, true), true);
         $project['staging'] = is_array($staging) ? $staging : null;
         $project['updatedAt'] = $post->post_modified_gmt !== '0000-00-00 00:00:00' ? gmdate(DATE_ATOM, (int) strtotime($post->post_modified_gmt . ' UTC')) : null;

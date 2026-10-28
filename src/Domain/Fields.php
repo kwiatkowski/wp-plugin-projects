@@ -49,6 +49,8 @@ final class Fields
         'acf' => ['type' => 'boolean', 'reported' => true],
         'miModal' => ['type' => 'boolean', 'reported' => true],
         'todoProject' => ['type' => 'integer'],
+        // reCAPTCHA v3: the site key (its secret apart, encrypted like the passwords – META_RECAPTCHA_SECRET)
+        'recaptchaSiteKey' => ['type' => 'string', 'max' => 100],
         'notes' => ['type' => 'string', 'max' => 5000],
     ];
 

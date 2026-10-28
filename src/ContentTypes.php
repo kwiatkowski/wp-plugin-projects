@@ -27,6 +27,8 @@ final class ContentTypes
     /** the HTTP Basic Auth password the site sits behind – encrypted like the panel's */
     public const META_AUTH_PASSWORD = '_project_auth_password';
     public const META_STAGING_AUTH_PASSWORD = '_project_staging_auth_password';
+    /** reCAPTCHA v3's secret key – encrypted like the passwords */
+    public const META_RECAPTCHA_SECRET = '_project_recaptcha_secret';
     /** what the staging answered at the list's last pull: { code, checkedAt }, JSON */
     public const META_STAGING = '_project_staging';
     public const META_REPORTED_AT = '_project_reported_at';

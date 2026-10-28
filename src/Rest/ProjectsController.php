@@ -24,7 +24,7 @@ use WP_REST_Server;
  * POST   /projects/v1/projects/order       { ids: [5, 2, 9] } – these projects in this order (one category); returns all
  * GET    /projects/v1/projects/{id}/tasks  – open tasks of the linked Todo project: { todo, tasks }
  * GET    /projects/v1/projects/{id}/report – the last report of the site: { reportedAt, report }
- * GET    /projects/v1/projects/{id}/password?kind=panel|auth – the panel / Basic Auth password: { password } (null – none)
+ * GET    /projects/v1/projects/{id}/password?kind=panel|auth|staging|recaptcha – the panel / Basic Auth password, reCAPTCHA secret: { password } (null – none)
  * POST   /projects/v1/projects/{id}/password { password, kind? } – sets it (encrypted), empty/null removes; returns the project
  * GET    /projects/v1/todo-projects        – Todo's projects, to link one
  * GET    /projects/v1/changed              – everyone: when the list last changed – { changedAt } (the app polls it)
