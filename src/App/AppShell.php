@@ -148,7 +148,8 @@ final class AppShell
                 'avatar' => get_avatar_url($user->ID, ['size' => 64]),
             ] : null,
             'loginUrl' => $preview ? null : wp_login_url(self::url()),
-            'logoutUrl' => $session ? html_entity_decode(wp_logout_url(self::url()), ENT_QUOTES, 'UTF-8') : null,
+            // the guest's view keeps "Wyloguj" in the account's menu – it is a plain link, no REST
+            'logoutUrl' => is_user_logged_in() ? html_entity_decode(wp_logout_url(self::url()), ENT_QUOTES, 'UTF-8') : null,
             // the path only – MK Core resolves it against the list's own address (kwiatkowski.co), whichever copy shows it
             'reportUrl' => (string) wp_parse_url(rest_url('projects/v1/report'), PHP_URL_PATH),
             'todoUrl' => $manage && class_exists(\MKTodo\App\AppShell::class) ? \MKTodo\App\AppShell::url() : null,
