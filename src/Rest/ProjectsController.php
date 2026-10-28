@@ -42,7 +42,13 @@ final class ProjectsController extends Controller
         register_rest_route(self::NAMESPACE, '/projects', [
             [
                 'methods' => WP_REST_Server::READABLE,
-                'callback' => fn () => $this->respond($this->projects->all(Plugin::canManage())),
+                'callback' => function (WP_REST_Request $request): WP_REST_Response {
+                    // the owner's preview asks as a viewer or a guest; the answer differs by who asks – never cached
+                    $response = new WP_REST_Response($this->projects->all(Plugin::view($request->get_header('x_projects_view'))));
+                    $response->header('Cache-Control', 'no-store');
+
+                    return $response;
+                },
                 'permission_callback' => '__return_true',
             ],
             [

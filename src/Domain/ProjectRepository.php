@@ -12,8 +12,9 @@ use WP_Post;
  * Projects (posts of the `mk_project` type) as plain arrays:
  * { id, name, position, ...Fields::ALL, todo, reportedAt, token, hasPassword, updatedAt }.
  *
- * Two views: the full one for the owner, the public one – only projects with a domain, only their name,
- * category, order and Fields::publicFields() – for everyone else. Strings and numbers that are empty are null,
+ * Three views: the full one for the owner (admin); the viewer's (the list's own account) – every project, with the
+ * fields of the columns chosen for viewers; the guest's – only projects with a domain, their name, category, order
+ * and Fields::publicFields(). Strings and numbers that are empty are null,
  * booleans never are. `position` is the user's order within the project's category (null = never placed: last, by name);
  * `todo` is the linked Todo project with its open task counts (owner only).
  */
@@ -25,8 +26,11 @@ final class ProjectRepository
     ) {
     }
 
-    /** @return array<int, array<string, mixed>> */
-    public function all(bool $full): array
+    /**
+     * @param string $view admin, viewer or guest (Columns::VIEWS)
+     * @return array<int, array<string, mixed>>
+     */
+    public function all(string $view): array
     {
         $posts = get_posts([
             'post_type' => ContentTypes::PROJECT,
@@ -37,9 +41,18 @@ final class ProjectRepository
 
         $projects = array_map([$this, 'toArray'], $posts);
 
-        if ($full) {
+        if ($view !== 'guest') {
             $projects = array_map(fn (array $project): array => $project + ['todo' => $this->todo->summary($project['todoProject'])], $projects);
-        } else {
+        }
+
+        if ($view === 'viewer') {
+            $fields = array_flip(['id', 'name', 'categoryId', 'position', ...Columns::fields('viewer')]);
+            // the token itself stays the owner's – a viewer learns only that the site reports
+            $projects = array_map(
+                static fn (array $project): array => array_intersect_key(['token' => $project['token'] ? 'ukryty' : null] + $project, $fields),
+                $projects,
+            );
+        } elseif ($view === 'guest') {
             $fields = array_flip(['id', 'name', 'categoryId', 'position', ...Fields::publicFields()]);
             $projects = array_values(array_map(
                 static fn (array $project): array => array_intersect_key($project, $fields),
@@ -162,7 +175,7 @@ final class ProjectRepository
             update_post_meta($id, ContentTypes::META_POSITION, $position);
         }
 
-        return $this->all(true);
+        return $this->all('admin');
     }
 
     /** Moves the project to the trash – it can still be restored in wp-admin. */

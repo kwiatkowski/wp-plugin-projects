@@ -6,6 +6,7 @@ namespace MKProjects\App;
 
 use MKProjects\Domain\Columns;
 use MKProjects\Domain\Fields;
+use MKProjects\Domain\Viewer;
 use MKProjects\Plugin;
 use WP;
 
@@ -128,34 +129,48 @@ final class AppShell
     /** @return array<string, mixed> */
     private function config(): array
     {
-        // ?podglad – the owner sees the list as everyone else does, still logged in: no nonce, so WordPress takes the
-        // list's REST requests as a guest's and answers them with the public data alone
-        $preview = Plugin::canManage() && isset($_GET['podglad']); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $manage = Plugin::canManage() && !$preview;
+        $owner = Plugin::canManage();
+        // ?podglad=gosc / ?podglad=zalogowany – the owner looks as a guest or a viewer, still logged in: the list's
+        // requests say so (X-Projects-View) and the server answers them as it would answer those
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $preview = $owner && isset($_GET['podglad']) ? (sanitize_key((string) $_GET['podglad']) === 'zalogowany' ? 'viewer' : 'guest') : null;
+        $view = $preview ?? Plugin::view();
+        $manage = $view === 'admin';
         $user = wp_get_current_user();
-        $session = is_user_logged_in() && !$preview;
+        $account = Viewer::account();
 
         return [
             'restUrl' => esc_url_raw(rest_url('projects/v1/')),
-            'nonce' => $session ? wp_create_nonce('wp_rest') : null,
+            'nonce' => is_user_logged_in() ? wp_create_nonce('wp_rest') : null,
             // core endpoint that hands out a fresh REST nonce – used when the tab stays open past the nonce lifetime
-            'nonceUrl' => $session ? admin_url('admin-ajax.php?action=rest-nonce') : null,
+            'nonceUrl' => is_user_logged_in() ? admin_url('admin-ajax.php?action=rest-nonce') : null,
             'basePath' => (string) wp_parse_url(self::url(), PHP_URL_PATH),
             'canManage' => $manage,
+            // admin, viewer or guest – what this page shows; preview – the owner's look as one of the other two
+            'view' => $view,
             'preview' => $preview,
+            // the list's own account: logged in with it, whether there is one (the guest's "Zaloguj"), and for the
+            // owner its login (the settings)
+            'viewer' => !$owner && $view === 'viewer' && $account ? ['login' => $account['login']] : null,
+            'viewerAccount' => $account !== null,
+            'viewerLogin' => $owner ? ($account['login'] ?? null) : null,
             'user' => is_user_logged_in() ? [
                 'name' => $user->display_name,
                 'avatar' => get_avatar_url($user->ID, ['size' => 64]),
             ] : null,
-            'loginUrl' => $preview ? null : wp_login_url(self::url()),
+            'loginUrl' => wp_login_url(self::url()),
             // the guest's view keeps "Wyloguj" in the account's menu – it is a plain link, no REST
             'logoutUrl' => is_user_logged_in() ? html_entity_decode(wp_logout_url(self::url()), ENT_QUOTES, 'UTF-8') : null,
             // the path only – MK Core resolves it against the list's own address (kwiatkowski.co), whichever copy shows it
             'reportUrl' => (string) wp_parse_url(rest_url('projects/v1/report'), PHP_URL_PATH),
             'todoUrl' => $manage && class_exists(\MKTodo\App\AppShell::class) ? \MKTodo\App\AppShell::url() : null,
             'publicFields' => Fields::publicFields(),
-            // the columns shown: the owner's own (null – all), the public list's
-            'columns' => ['mine' => $manage ? Columns::mine(get_current_user_id()) : null, 'public' => Columns::publicColumns()],
+            // the columns: what this page shows, and for the owner the viewers' and the guests' (the settings)
+            'columns' => [
+                'visible' => Columns::forView($view),
+                'viewer' => $owner ? Columns::forView('viewer') : null,
+                'guest' => $owner ? Columns::forView('guest') : null,
+            ],
             'latestWordpress' => self::latestWordpress(),
             'wordpressVersions' => $manage ? self::wordpressVersions() : [],
             'siteName' => get_bloginfo('name'),

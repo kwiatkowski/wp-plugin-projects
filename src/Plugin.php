@@ -11,12 +11,14 @@ use MKProjects\Domain\ProjectRepository;
 use MKProjects\Domain\ReportPuller;
 use MKProjects\Domain\SiteUpdater;
 use MKProjects\Domain\TodoBridge;
+use MKProjects\Domain\Viewer;
 use MKProjects\Rest\CategoriesController;
 use MKProjects\Rest\ColumnsController;
 use MKProjects\Rest\ProjectsController;
 use MKProjects\Rest\PullController;
 use MKProjects\Rest\ReportController;
 use MKProjects\Rest\UpdateController;
+use MKProjects\Rest\ViewerController;
 
 /**
  * Wires the plugin together.
@@ -40,6 +42,7 @@ final class Plugin
         (new ProjectsController($projects, $todo))->register();
         (new CategoriesController($categories))->register();
         (new ColumnsController())->register();
+        (new ViewerController())->register();
         (new ReportController($projects))->register();
         (new UpdateController(new SiteUpdater($projects)))->register();
 
@@ -81,6 +84,19 @@ final class Plugin
     public static function canManage(): bool
     {
         return current_user_can(self::capability());
+    }
+
+    /**
+     * Who looks at the list: admin (the owner), viewer (the list's own account, Viewer) or guest. The owner can look as
+     * either of the others – `$as`, the list's preview (?podglad, the X-Projects-View header).
+     */
+    public static function view(?string $as = null): string
+    {
+        if (self::canManage()) {
+            return in_array($as, ['viewer', 'guest'], true) ? $as : 'admin';
+        }
+
+        return Viewer::active() ? 'viewer' : 'guest';
     }
 
     /** Card in the MK Core dashboard widget, when MK Core is installed. */

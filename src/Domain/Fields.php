@@ -75,7 +75,7 @@ final class Fields
     public static function publicFields(): array
     {
         return array_values(array_intersect(
-            (array) apply_filters('wp_plugin_projects/public_fields', Columns::publicFields()),
+            (array) apply_filters('wp_plugin_projects/public_fields', Columns::fields('guest')),
             array_keys(self::ALL),
         ));
     }
