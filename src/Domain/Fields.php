@@ -31,7 +31,6 @@ final class Fields
         'theme' => ['type' => 'string', 'max' => 100, 'reported' => true],
         'repo' => ['type' => 'string', 'format' => 'uri', 'reported' => true],
         'deploy' => ['type' => 'boolean', 'reported' => true],
-        'dev' => ['type' => 'boolean'],
         'bedrock' => ['type' => 'boolean', 'reported' => true],
         'security' => ['type' => 'boolean', 'reported' => true],
         'localUrl' => ['type' => 'string', 'format' => 'uri'],

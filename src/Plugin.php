@@ -61,7 +61,7 @@ final class Plugin
     }
 
     /** Fields the list no longer has – their stored values go, once (the option remembers it was done). */
-    private const RETIRED_FIELDS = ['_project_db_sync', '_project_listed'];
+    private const RETIRED_FIELDS = ['_project_db_sync', '_project_listed', '_project_dev'];
 
     private static function dropRetiredFields(): void
     {
