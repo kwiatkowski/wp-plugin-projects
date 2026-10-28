@@ -10,7 +10,8 @@ use WP_REST_Server;
 
 /**
  * GET  /projects/v1/projects/{id}/update – how the site's Composer update goes (SiteUpdater)
- * POST /projects/v1/projects/{id}/update – start it: composer update, commit and push of composer.lock on production
+ * POST /projects/v1/projects/{id}/update – start it: composer update, commit and push of composer.lock on production;
+ *                                          scope=translations – only the translations
  */
 final class UpdateController extends Controller
 {
@@ -29,8 +30,9 @@ final class UpdateController extends Controller
             ],
             [
                 'methods' => WP_REST_Server::CREATABLE,
-                'callback' => fn (WP_REST_Request $request) => $this->respond($this->updater->call((int) $request['id'], 'POST')),
+                'callback' => fn (WP_REST_Request $request) => $this->respond($this->updater->call((int) $request['id'], 'POST', (string) $request['scope'])),
                 'permission_callback' => [$this, 'permission'],
+                'args' => ['scope' => ['type' => 'string', 'enum' => ['all', 'translations'], 'default' => 'all']],
             ],
         ]);
     }

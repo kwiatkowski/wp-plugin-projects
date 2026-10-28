@@ -608,6 +608,11 @@ final class ProjectRepository
         $project['parentTheme'] = is_array($report) && is_string($report['parentTheme'] ?? null) ? $report['parentTheme'] : null;
         $project['themeDetails'] = is_array($report) && is_array($report['themeDetails'] ?? null) ? $report['themeDetails'] : null;
         $project['reporter'] = is_array($report) && is_string($report['reporter'] ?? null) ? $report['reporter'] : null;
+        // the translations waiting for an update (core, plugins, themes) – "Aktualizuj tłumaczenia" when they are all there is
+        $project['translationUpdates'] = array_values(array_filter(
+            is_array($report) && is_array($report['translationUpdates'] ?? null) ? $report['translationUpdates'] : [],
+            'is_array',
+        ));
         // the plugins waiting for an update – the report's dot turns orange and lists them
         $project['updates'] = array_values(array_map(
             static fn (array $plugin): array => ['name' => (string) ($plugin['name'] ?? ''), 'version' => (string) ($plugin['version'] ?? ''), 'update' => (string) $plugin['update']],
