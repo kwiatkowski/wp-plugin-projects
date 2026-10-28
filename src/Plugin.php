@@ -13,6 +13,7 @@ use MKProjects\Domain\SiteUpdater;
 use MKProjects\Domain\TodoBridge;
 use MKProjects\Rest\CategoriesController;
 use MKProjects\Rest\ProjectsController;
+use MKProjects\Rest\PullController;
 use MKProjects\Rest\ReportController;
 use MKProjects\Rest\UpdateController;
 
@@ -40,8 +41,9 @@ final class Plugin
         (new ReportController($projects))->register();
         (new UpdateController(new SiteUpdater($projects)))->register();
 
-        // `wp projects-report` on the list's site (MK Core) fetches every other site's report
+        // `wp projects-report` on the list's site (MK Core) fetches every other site's report; the dialog – one of them
         $puller = new ReportPuller($projects);
+        (new PullController($puller))->register();
         add_filter('mk_core/report/pull', static fn (mixed $pulled, string $ownToken = ''): array => $puller->pull($ownToken), 10, 2);
         (new AppShell())->register();
 

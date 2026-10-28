@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MKProjects\Domain;
 
+use WP_Error;
 use WpOrg\Requests\Requests;
 use WpOrg\Requests\Response;
 
@@ -31,10 +32,44 @@ final class ReportPuller
      */
     public function pull(string $ownToken = ''): array
     {
+        $results = $this->run($this->projects->pullTargets(), $ownToken);
+
+        return array_map(
+            static fn (array $project): array => ['name' => $project['name'], 'reportedAt' => $project['reportedAt']] + ($results[$project['id']] ?? ['ok' => null, 'error' => null, 'changes' => []]),
+            $this->projects->reportTimes(),
+        );
+    }
+
+    /**
+     * One project's report, now – "Pobierz raport" in its dialog: whether it came (or why not), what it changed, and
+     * the project as it is after it.
+     *
+     * @return array{ok: bool|null, error: string|null, changes: array<int, array<string, mixed>>, project: array<string, mixed>}|WP_Error
+     */
+    public function pullOne(int $id): array|WP_Error
+    {
+        $target = $this->projects->pullTarget($id);
+
+        if ($target === null) {
+            return new WP_Error('projects_not_found', __('Nie ma takiego projektu.', 'wp-plugin-projects'), ['status' => 404]);
+        }
+
+        $result = $this->run([$target])[$id];
+        $project = $this->projects->find($id);
+
+        return is_wp_error($project) ? $project : $result + ['project' => $project];
+    }
+
+    /**
+     * Pulls the given sites at once: their certificates, stagings, home pages and reports – keyed by the project's id.
+     *
+     * @param array<int, array<string, mixed>> $all as ProjectRepository::pullTargets() gives them
+     * @return array<int, array{ok: bool|null, error: string|null, changes: array<int, array<string, mixed>>}>
+     */
+    private function run(array $all, string $ownToken = ''): array
+    {
         $targets = [];
         $results = [];
-
-        $all = $this->projects->pullTargets();
 
         foreach ($all as $target) {
             // the certificate of every site with a domain – a token isn't needed for it
@@ -113,10 +148,7 @@ final class ReportPuller
             $results[$id] = ['ok' => false, 'error' => $error, 'changes' => $change ? [$change] : []];
         }
 
-        return array_map(
-            static fn (array $project): array => ['name' => $project['name'], 'reportedAt' => $project['reportedAt']] + ($results[$project['id']] ?? ['ok' => null, 'error' => null, 'changes' => []]),
-            $this->projects->reportTimes(),
-        );
+        return $results;
     }
 
     /**
