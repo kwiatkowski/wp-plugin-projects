@@ -128,22 +128,27 @@ final class AppShell
     /** @return array<string, mixed> */
     private function config(): array
     {
-        $manage = Plugin::canManage();
+        // ?podglad – the owner sees the list as everyone else does, still logged in: no nonce, so WordPress takes the
+        // list's REST requests as a guest's and answers them with the public data alone
+        $preview = Plugin::canManage() && isset($_GET['podglad']); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $manage = Plugin::canManage() && !$preview;
         $user = wp_get_current_user();
+        $session = is_user_logged_in() && !$preview;
 
         return [
             'restUrl' => esc_url_raw(rest_url('projects/v1/')),
-            'nonce' => is_user_logged_in() ? wp_create_nonce('wp_rest') : null,
+            'nonce' => $session ? wp_create_nonce('wp_rest') : null,
             // core endpoint that hands out a fresh REST nonce – used when the tab stays open past the nonce lifetime
-            'nonceUrl' => is_user_logged_in() ? admin_url('admin-ajax.php?action=rest-nonce') : null,
+            'nonceUrl' => $session ? admin_url('admin-ajax.php?action=rest-nonce') : null,
             'basePath' => (string) wp_parse_url(self::url(), PHP_URL_PATH),
             'canManage' => $manage,
+            'preview' => $preview,
             'user' => is_user_logged_in() ? [
                 'name' => $user->display_name,
                 'avatar' => get_avatar_url($user->ID, ['size' => 64]),
             ] : null,
-            'loginUrl' => wp_login_url(self::url()),
-            'logoutUrl' => is_user_logged_in() ? html_entity_decode(wp_logout_url(self::url()), ENT_QUOTES, 'UTF-8') : null,
+            'loginUrl' => $preview ? null : wp_login_url(self::url()),
+            'logoutUrl' => $session ? html_entity_decode(wp_logout_url(self::url()), ENT_QUOTES, 'UTF-8') : null,
             // the path only – MK Core resolves it against the list's own address (kwiatkowski.co), whichever copy shows it
             'reportUrl' => (string) wp_parse_url(rest_url('projects/v1/report'), PHP_URL_PATH),
             'todoUrl' => $manage && class_exists(\MKTodo\App\AppShell::class) ? \MKTodo\App\AppShell::url() : null,
