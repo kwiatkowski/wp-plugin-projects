@@ -16,7 +16,7 @@ final class Fields
 {
     public const STATUSES = ['online', 'dev', 'suspended', 'offline'];
 
-    /** @var array<string, array{type: string, format?: string, enum?: string[], reported?: bool, max?: int}> */
+    /** @var array<string, array{type: string, format?: string, enum?: string[], reported?: bool, max?: int, multiline?: bool}> */
     public const ALL = [
         'categoryId' => ['type' => 'integer'],
         // the site's addresses, without https:// – one project can have several (e.g. language versions)
@@ -51,7 +51,8 @@ final class Fields
         'todoProject' => ['type' => 'integer'],
         // reCAPTCHA v3: the site key (its secret apart, encrypted like the passwords – META_RECAPTCHA_SECRET)
         'recaptchaSiteKey' => ['type' => 'string', 'max' => 100],
-        'notes' => ['type' => 'string', 'max' => 5000],
+        // Markdown – its lines kept (`multiline`)
+        'notes' => ['type' => 'string', 'max' => 5000, 'multiline' => true],
     ];
 
     /** What everyone sees on the public list (filter `wp_plugin_projects/public_fields`). */

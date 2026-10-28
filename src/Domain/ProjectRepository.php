@@ -559,7 +559,7 @@ final class ProjectRepository
     }
 
     /**
-     * @param array{type: string, format?: string, enum?: string[], max?: int} $definition
+     * @param array{type: string, format?: string, enum?: string[], max?: int, multiline?: bool} $definition
      * @return string|int|string[]|null what is stored; null = nothing
      */
     private function clean(mixed $value, array $definition): string|int|array|null
@@ -583,7 +583,8 @@ final class ProjectRepository
             return (int) $value > 0 ? (int) $value : null;
         }
 
-        $value = trim(sanitize_text_field((string) ($value ?? '')));
+        // a multiline one (the notes) keeps its line breaks – sanitize_text_field() would make them spaces
+        $value = trim(empty($definition['multiline']) ? sanitize_text_field((string) ($value ?? '')) : sanitize_textarea_field((string) ($value ?? '')));
 
         if ($value === '') {
             return null;
