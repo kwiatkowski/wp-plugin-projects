@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace MKProjects\Domain;
 
 use WP_Error;
+use WpOrg\Requests\Exception as RequestsException;
+use WpOrg\Requests\Exception\Transport\Curl as CurlException;
 use WpOrg\Requests\Requests;
 use WpOrg\Requests\Response;
 
@@ -164,7 +166,7 @@ final class ReportPuller
 
         foreach ($stagings as $id) {
             $staging = $responses["staging-$id"] ?? null;
-            $this->projects->applyStaging($id, $staging instanceof Response ? (int) $staging->status_code : 0);
+            $this->projects->applyStaging($id, $staging instanceof Response ? (int) $staging->status_code : 0, self::failure($staging));
         }
 
         foreach ($targets as $id => $target) {
@@ -224,6 +226,37 @@ final class ReportPuller
             $response->status_code === 404 => [null, 'brak modułu raportu (MK Core / plugin_meden)'],
             in_array($response->status_code, [401, 403], true) => [null, 'token się nie zgadza'],
             default => [null, 'HTTP ' . $response->status_code],
+        };
+    }
+
+    /**
+     * Why a request got no answer at all, for the list: dns (no such domain), refused (nothing listens), timeout, ssl
+     * (the certificate), redirects (a loop), other – null when it got one.
+     */
+    private static function failure(mixed $response): ?string
+    {
+        if ($response instanceof Response) {
+            return null;
+        }
+
+        if ($response instanceof RequestsException && $response->getType() === 'toomanyredirects') {
+            return 'redirects';
+        }
+
+        // curl's error number: a CurlException's code from a parallel request, or "cURL error N:" from a redirect's own
+        $code = match (true) {
+            $response instanceof CurlException => (int) $response->getCode(),
+            $response instanceof RequestsException && preg_match('/^cURL error (\d+)/', $response->getMessage(), $match) === 1 => (int) $match[1],
+            default => 0,
+        };
+
+        return match ($code) {
+            5, 6 => 'dns',
+            7 => 'refused',
+            28 => 'timeout',
+            35, 51, 53, 54, 58, 59, 60, 64, 66, 77, 80, 82, 83, 90, 91 => 'ssl',
+            47 => 'redirects',
+            default => 'other',
         };
     }
 }

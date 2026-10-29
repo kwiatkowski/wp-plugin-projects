@@ -363,10 +363,11 @@ final class ProjectRepository
         return array_map([$this, 'target'], $posts);
     }
 
-    /** What the staging answered (0 – nothing), when the list asked. */
-    public function applyStaging(int $id, int $code): void
+    /** What the staging answered (0 – nothing, and why: ReportPuller::failure()), when the list asked. */
+    public function applyStaging(int $id, int $code, ?string $error = null): void
     {
-        update_post_meta($id, ContentTypes::META_STAGING, wp_slash((string) wp_json_encode(['code' => $code, 'checkedAt' => gmdate(DATE_ATOM)])));
+        $staging = ['code' => $code, 'checkedAt' => gmdate(DATE_ATOM)] + ($error !== null ? ['error' => $error] : []);
+        update_post_meta($id, ContentTypes::META_STAGING, wp_slash((string) wp_json_encode($staging)));
     }
 
     /** Keeps what SslChecker found for the project. */
