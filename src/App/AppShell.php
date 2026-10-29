@@ -11,7 +11,9 @@ use MKProjects\Plugin;
 use WP;
 
 /**
- * Serves the Vue app under /projects/ (and every deeper path – the app has its own router).
+ * Serves the Vue app under /projects/ (and every deeper path – the app has its own router) – or, with its own host
+ * (PROJECTS_APP_HOST, e.g. projects.kwiatkowski.co: a subdomain pointing at the same WordPress), at that host's root;
+ * the old /projects/ addresses then lead there (301).
  *
  * Open to everyone: visitors get the public list, the owner (logged in, `wp_plugin_projects/capability`)
  * every field and editing. The built index.html gets the runtime config injected (REST URL, nonce, user),
@@ -23,6 +25,50 @@ final class AppShell
     {
         add_action('parse_request', [$this, 'maybeServe'], 0);
         add_action('admin_bar_menu', [$this, 'adminBar'], 81);
+
+        if (self::host() !== null) {
+            // the login and logout on the site come back to the list's host
+            add_filter('allowed_redirect_hosts', static fn (array $hosts): array => [...$hosts, (string) self::host()]);
+            add_action('clear_auth_cookie', [self::class, 'clearHostOnlyCookies']);
+        }
+    }
+
+    /** the list's own host – PROJECTS_APP_HOST (a constant, or the environment); null: under /projects/ of the site */
+    public static function host(): ?string
+    {
+        $host = defined('PROJECTS_APP_HOST') ? (string) constant('PROJECTS_APP_HOST') : (string) ($_ENV['PROJECTS_APP_HOST'] ?? $_SERVER['PROJECTS_APP_HOST'] ?? getenv('PROJECTS_APP_HOST') ?: '');
+        $host = strtolower(trim($host));
+
+        return $host !== '' ? $host : null;
+    }
+
+    /** whether this request came to the list's own host */
+    private static function onHost(): bool
+    {
+        return self::host() !== null && strtolower((string) ($_SERVER['HTTP_HOST'] ?? '')) === self::host();
+    }
+
+    /** a URL of the site on the list's own host – when the page is shown there (the REST API and the nonce, same origin) */
+    private static function local(string $url): string
+    {
+        return self::onHost() ? (string) preg_replace('#^https?://[^/]+#i', 'https://' . self::host(), $url) : $url;
+    }
+
+    /**
+     * The login cookies are the whole domain's (COOKIE_DOMAIN) since the list has its own host – the ones a browser
+     * still keeps from before, for the main host alone, go with the logout too.
+     */
+    public static function clearHostOnlyCookies(): void
+    {
+        if (!defined('COOKIE_DOMAIN') || !COOKIE_DOMAIN || headers_sent()) {
+            return;
+        }
+
+        $past = time() - YEAR_IN_SECONDS;
+
+        foreach ([[AUTH_COOKIE, ADMIN_COOKIE_PATH], [SECURE_AUTH_COOKIE, ADMIN_COOKIE_PATH], [AUTH_COOKIE, PLUGINS_COOKIE_PATH], [SECURE_AUTH_COOKIE, PLUGINS_COOKIE_PATH], [LOGGED_IN_COOKIE, COOKIEPATH], [LOGGED_IN_COOKIE, SITECOOKIEPATH]] as [$name, $path]) {
+            setcookie($name, ' ', $past, $path);
+        }
     }
 
     public static function path(): string
@@ -32,15 +78,26 @@ final class AppShell
 
     public static function url(): string
     {
-        return home_url('/' . self::path() . '/');
+        return self::host() !== null ? 'https://' . self::host() . '/' : home_url('/' . self::path() . '/');
     }
 
     public function maybeServe(WP $wp): void
     {
         $path = self::path();
 
-        if ($wp->request !== $path && !str_starts_with($wp->request, $path . '/')) {
+        // the list's own host: the app at every path but the REST API's
+        if (self::onHost()) {
+            if (isset($wp->query_vars['rest_route']) || str_starts_with($wp->request, 'wp-json')) {
+                return;
+            }
+        } elseif ($wp->request !== $path && !str_starts_with($wp->request, $path . '/')) {
             return;
+        } elseif (self::host() !== null) {
+            // the old address – to the same place on the list's host
+            $rest = ltrim(substr($wp->request, strlen($path)), '/');
+            $query = (string) ($_SERVER['QUERY_STRING'] ?? '');
+            wp_redirect(self::url() . $rest . ($query !== '' ? '?' . $query : ''), 301);
+            exit;
         }
 
         $index = (string) apply_filters('wp_plugin_projects/app_index', dirname(WP_CONTENT_DIR) . '/' . $path . '/web/index.html');
@@ -140,10 +197,10 @@ final class AppShell
         $account = Viewer::account();
 
         return [
-            'restUrl' => esc_url_raw(rest_url('projects/v1/')),
+            'restUrl' => esc_url_raw(self::local(rest_url('projects/v1/'))),
             'nonce' => is_user_logged_in() ? wp_create_nonce('wp_rest') : null,
             // core endpoint that hands out a fresh REST nonce – used when the tab stays open past the nonce lifetime
-            'nonceUrl' => is_user_logged_in() ? admin_url('admin-ajax.php?action=rest-nonce') : null,
+            'nonceUrl' => is_user_logged_in() ? self::local(admin_url('admin-ajax.php?action=rest-nonce')) : null,
             'basePath' => (string) wp_parse_url(self::url(), PHP_URL_PATH),
             'canManage' => $manage,
             // admin, viewer or guest – what this page shows; preview – the owner's look as one of the other two

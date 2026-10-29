@@ -239,7 +239,7 @@ final class Alerts
 
     private static function listUrl(): string
     {
-        return home_url('/' . trim((string) apply_filters('wp_plugin_projects/path', 'projects'), '/') . '/');
+        return \MKProjects\App\AppShell::url();
     }
 
     /**
