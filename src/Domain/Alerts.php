@@ -106,7 +106,7 @@ final class Alerts
                 unset($now['ssl']);
             } elseif (($now['ssl'] ?? null) !== $sslKey && ($first || ($rules['ssl']['enabled'] && !$muted))) {
                 if (!$first) {
-                    $alerts[] = ['rule' => 'ssl', 'id' => $id, 'icon' => '🟠', 'text' => sprintf('%s: %s', $project['name'], $sslText ?? '')];
+                    $alerts[] = ['rule' => 'ssl', 'id' => $id, 'icon' => str_starts_with($sslKey, 'soon:') ? '🟠' : '🔴', 'tone' => str_starts_with($sslKey, 'soon:') ? 'warn' : 'danger', 'what' => $project['name'], 'url' => $project['url'] ?? null, 'detail' => '– ' . ($sslText ?? '')];
                 }
 
                 $now['ssl'] = $sslKey;
@@ -120,7 +120,7 @@ final class Alerts
                 unset($now['report']);
             } elseif (($now['report'] ?? null) !== $reportedAt && ($first || ($rules['report']['enabled'] && !$muted))) {
                 if (!$first) {
-                    $alerts[] = ['rule' => 'report', 'id' => $id, 'icon' => '🟠', 'text' => sprintf('%s: brak raportu od %s', $project['name'], wp_date('Y.m.d H:i', $reportedAt))];
+                    $alerts[] = ['rule' => 'report', 'id' => $id, 'icon' => '🟠', 'tone' => 'warn', 'what' => $project['name'], 'url' => $project['url'] ?? null, 'detail' => sprintf('– brak raportu od %s', wp_date('Y.m.d H:i', $reportedAt))];
                 }
 
                 $now['report'] = $reportedAt;
@@ -133,7 +133,8 @@ final class Alerts
         if ($rules['vulnerability']['enabled']) {
             foreach ($this->history->eventsSince($lastRun, 'vulnerability') as $event) {
                 if (self::mutedUntil($event['projectId']) === null) {
-                    $alerts[] = ['rule' => 'vulnerability', 'id' => $event['projectId'], 'icon' => '🛡️', 'text' => sprintf('%s: %s', get_the_title($event['projectId']), (string) ($event['data']['text'] ?? ''))];
+                    $serious = in_array($event['data']['severity'] ?? null, ['h', 'c'], true);
+                    $alerts[] = ['rule' => 'vulnerability', 'id' => $event['projectId'], 'icon' => '🛡️', 'tone' => $serious ? 'danger' : 'warn', 'what' => get_the_title($event['projectId']), 'url' => null, 'detail' => '– ' . (string) ($event['data']['text'] ?? '')];
                 }
             }
         }
@@ -171,12 +172,12 @@ final class Alerts
         } elseif ($failed >= (int) ($down['after'] ?? 2) && empty($now[$target]) && $down['enabled'] && !$muted) {
             $now[$target] = time() - ($failed - 1) * 5 * MINUTE_IN_SECONDS;
             $check = $this->history->lastCheck($id, $target);
-            $alerts[] = ['rule' => $rule, 'id' => $id, 'icon' => '🔴', 'text' => sprintf('%s nie działa%s', $what, $check ? ' – ' . self::reason($check['code'], $check['error']) : '')];
+            $alerts[] = ['rule' => $rule, 'id' => $id, 'icon' => '🔴', 'tone' => 'danger', 'what' => $what, 'url' => $project['url'] ?? null, 'detail' => sprintf('nie działa%s', $check ? ' – ' . self::reason($check['code'], $check['error']) : '')];
         } elseif ($failed === 0 && !empty($now[$target]) && !$first) {
             $minutes = (int) round((time() - (int) $now[$target]) / 60);
 
             if ($back['enabled'] && !$muted) {
-                $alerts[] = ['rule' => $target === 'home' ? 'recovery' : 'staging', 'id' => $id, 'icon' => '🟢', 'text' => sprintf('%s znów działa – niedostępna ok. %d min', $what, max($minutes, 1))];
+                $alerts[] = ['rule' => $target === 'home' ? 'recovery' : 'staging', 'id' => $id, 'icon' => '🟢', 'tone' => 'ok', 'what' => $what, 'url' => $project['url'] ?? null, 'detail' => sprintf('znów działa – niedostępna ok. %d min', max($minutes, 1))];
             }
 
             unset($now[$target]);
@@ -211,10 +212,13 @@ final class Alerts
                 continue;
             }
 
-            $lines = array_map(static fn (array $alert): string => $alert['icon'] . ' ' . $alert['text'], $mine);
+            $lines = array_map(static fn (array $alert): string => $alert['icon'] . ' ' . self::text($alert), $mine);
             $first = reset($mine);
-            $subject = count($mine) === 1 ? $first['text'] : sprintf('%d powiadomień: %s', count($mine), implode(', ', array_slice(array_map(static fn (array $alert): string => (string) get_the_title($alert['id']), array_values($mine)), 0, 4)));
-            $result = $this->notifier->send([$channel], '[Lista projektów] ' . $subject, implode("\n", $lines) . "\n" . self::listUrl());
+            // the subject's dot: the worst of the alerts
+            $tones = array_column($mine, 'tone');
+            $icon = Notifier::DOTS[in_array('danger', $tones, true) ? 'danger' : (in_array('warn', $tones, true) ? 'warn' : 'ok')];
+            $subject = count($mine) === 1 ? self::text($first) : sprintf('%d powiadomień: %s', count($mine), implode(', ', array_slice(array_map(static fn (array $alert): string => (string) get_the_title($alert['id']), array_values($mine)), 0, 4)));
+            $result = $this->notifier->send([$channel], $icon . ' ' . $subject, implode("\n", $lines) . "\n\n" . self::listUrl(), Notifier::layout(count($mine) === 1 ? self::text($first) : sprintf('%d powiadomień', count($mine)), self::rows(array_map(static fn (array $alert): array => ['tone' => $alert['tone'], 'name' => $alert['what'], 'url' => $alert['url'], 'detail' => $alert['detail']], $mine)), wp_date('j.m.Y, H:i')));
 
             foreach (array_keys($mine) as $index) {
                 $sent[$index][$channel] = $result[$channel];
@@ -222,8 +226,35 @@ final class Alerts
         }
 
         foreach ($alerts as $index => $alert) {
-            $this->history->event($alert['id'], 'alert', ['text' => $alert['icon'] . ' ' . $alert['text'], 'sent' => $sent[$index] ?? []]);
+            $this->history->event($alert['id'], 'alert', ['text' => $alert['icon'] . ' ' . self::text($alert), 'sent' => $sent[$index] ?? []]);
         }
+    }
+
+    /** @param array<string, mixed> $alert */
+    private static function text(array $alert): string
+    {
+        return $alert['what'] . ' ' . $alert['detail'];
+    }
+
+    /**
+     * The e-mail's rows: a dot in the tone, the site's name (a link to it), what about it.
+     *
+     * @param array<int, array{tone: string, name: string, url: ?string, detail: string}> $items
+     */
+    private static function rows(array $items): string
+    {
+        $rows = array_map(static function (array $item): string {
+            $name = esc_html($item['name']);
+
+            return '<tr>'
+                . '<td width="22" style="padding:9px 0;border-bottom:1px solid #f0f2f1;vertical-align:top;line-height:20px">' . Notifier::dot($item['tone']) . '</td>'
+                . '<td style="padding:9px 0;border-bottom:1px solid #f0f2f1;line-height:20px">'
+                . ($item['url'] ? '<a href="' . esc_url($item['url']) . '" style="color:#1f2a24;font-weight:600;text-decoration:none">' . $name . '</a>' : '<strong>' . $name . '</strong>')
+                . ' <span style="color:#5d6862">' . esc_html($item['detail']) . '</span></td>'
+                . '</tr>';
+        }, array_values($items));
+
+        return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px">' . implode('', $rows) . '</table>';
     }
 
     /** @return string[] the channels set up: e-mail on with a recipient, Slack on with a webhook */
@@ -275,11 +306,11 @@ final class Alerts
 
         foreach ($this->projects->all('admin') as $project) {
             $id = (int) $project['id'];
-            $name = (string) $project['name'];
+            $item = static fn (string $tone, string $detail): array => ['tone' => $tone, 'name' => (string) $project['name'], 'url' => $project['url'] ?? null, 'detail' => $detail];
 
             if (!empty($outages[$id])) {
                 $minutes = array_sum(array_column($outages[$id], 'minutes'));
-                $sections['down'][] = sprintf('%s – %d× niedostępna, razem %d min', $name, count($outages[$id]), $minutes);
+                $sections['down'][] = $item('danger', sprintf('%d× niedostępna, razem %d min', count($outages[$id]), $minutes));
             }
 
             $waiting = [];
@@ -297,46 +328,64 @@ final class Alerts
             }
 
             if ($waiting) {
-                $sections['updates'][] = $name . ' – ' . implode(', ', $waiting);
+                $sections['updates'][] = $item('warn', implode(', ', $waiting));
             }
 
             if (!empty($project['vulnerabilities'])) {
-                $sections['vulnerabilities'][] = sprintf('%s – %s', $name, implode(', ', array_unique(array_column((array) $project['vulnerabilities'], 'name'))));
+                $vulnerabilities = (array) $project['vulnerabilities'];
+                $serious = array_intersect(array_column($vulnerabilities, 'severity'), ['h', 'c']);
+                $sections['vulnerabilities'][] = $item($serious ? 'danger' : 'warn', implode(', ', array_unique(array_column($vulnerabilities, 'name'))));
             }
 
             $validTo = $project['ssl']['validTo'] ?? null;
 
             if (!empty($project['ssl']['error'])) {
-                $sections['ssl'][] = sprintf('%s – certyfikat nieprawidłowy (%s)', $name, $project['ssl']['error']);
+                $sections['ssl'][] = $item('danger', sprintf('certyfikat nieprawidłowy (%s)', $project['ssl']['error']));
             } elseif ($validTo && strtotime((string) $validTo) - time() < 30 * DAY_IN_SECONDS) {
-                $sections['ssl'][] = sprintf('%s – SSL do %s', $name, wp_date('Y.m.d', (int) strtotime((string) $validTo)));
+                $sections['ssl'][] = $item('warn', sprintf('ważny do %s', wp_date('j.m.Y', (int) strtotime((string) $validTo))));
             }
 
             if (!empty($project['token']) && !empty($project['reportedAt']) && time() - (int) strtotime((string) $project['reportedAt']) > DAY_IN_SECONDS) {
-                $sections['report'][] = sprintf('%s – ostatni raport %s', $name, wp_date('Y.m.d H:i', (int) strtotime((string) $project['reportedAt'])));
+                $sections['report'][] = $item('warn', sprintf('ostatni raport %s', wp_date('j.m.Y H:i', (int) strtotime((string) $project['reportedAt']))));
             }
         }
 
         $titles = [
-            'down' => 'Niedostępność w tym tygodniu',
-            'updates' => 'Do aktualizacji',
+            'down' => 'Niedostępność',
             'vulnerabilities' => 'Podatności wtyczek',
             'ssl' => 'Certyfikaty SSL (30 dni)',
+            'updates' => 'Do aktualizacji',
             'report' => 'Brak raportu ponad dobę',
         ];
-        $text = "*Lista projektów – podsumowanie tygodnia*\n";
-        $html = '<h2 style="font:600 18px sans-serif">Lista projektów – podsumowanie tygodnia</h2>';
+        $period = sprintf('%s – %s', wp_date('j.m', $since), wp_date('j.m.Y'));
+        $tones = array_column(array_merge(...array_values($sections)), 'tone');
+        $tone = in_array('danger', $tones, true) ? 'danger' : ($tones ? 'warn' : 'ok');
+        $text = "*Podsumowanie tygodnia* ($period)\n";
+        $html = '';
+        $clean = [];
 
         foreach ($titles as $key => $title) {
             $items = $sections[$key];
-            $text .= "\n*$title*" . ($items ? "\n• " . implode("\n• ", $items) : "\n– nic") . "\n";
-            $html .= '<h3 style="font:600 15px sans-serif;margin:18px 0 6px">' . esc_html($title) . '</h3>'
-                . ($items ? '<ul style="font:14px sans-serif;margin:0;padding-left:18px">' . implode('', array_map(static fn (string $item): string => '<li>' . esc_html($item) . '</li>', $items)) . '</ul>' : '<p style="font:14px sans-serif;color:#777;margin:0">nic</p>');
+
+            if (!$items) {
+                $clean[] = $title;
+                continue;
+            }
+
+            $text .= "\n*$title*\n" . implode("\n", array_map(static fn (array $item): string => Notifier::DOTS[$item['tone']] . ' ' . $item['name'] . ' – ' . $item['detail'], $items)) . "\n";
+            $html .= '<div style="margin:20px 0 4px;font-size:15px;font-weight:600">' . esc_html($title)
+                . ' <span style="display:inline-block;min-width:18px;padding:1px 7px;border-radius:10px;background:#eef1ef;color:#5d6862;font-size:12px;font-weight:600;text-align:center">' . count($items) . '</span></div>'
+                . self::rows(array_map(static fn (array $item): array => ['detail' => '– ' . $item['detail']] + $item, $items));
+        }
+
+        if ($clean) {
+            $text .= "\n🟢 Bez uwag: " . implode(', ', $clean) . "\n";
+            $html .= '<div style="margin:22px 0 0;padding:12px 14px;background:#f1f8f4;border-radius:8px;color:#2b5a3f;font-size:13px">'
+                . Notifier::dot('ok') . '&nbsp; <strong>Bez uwag:</strong> ' . esc_html(implode(' · ', $clean)) . '</div>';
         }
 
         $text .= "\n" . self::listUrl();
-        $html .= '<p style="font:14px sans-serif;margin-top:20px"><a href="' . esc_url(self::listUrl()) . '">Otwórz listę projektów</a></p>';
 
-        return $this->notifier->send($channels, '[Lista projektów] Podsumowanie tygodnia', $text, $html);
+        return $this->notifier->send($channels, Notifier::DOTS[$tone] . ' Podsumowanie tygodnia · ' . $period, $text, Notifier::layout('Podsumowanie tygodnia', $html, $period));
     }
 }

@@ -77,7 +77,7 @@ final class AlertsController extends Controller
         $channel = (string) $request['channel'];
         $result = $request['what'] === 'weekly'
             ? $this->alerts->weekly([$channel])
-            : (new Notifier())->send([$channel], '[Lista projektów] Test powiadomień', "✅ Test powiadomień z listy projektów – działa.\n" . home_url('/'));
+            : (new Notifier())->send([$channel], '🟢 Test powiadomień', "🟢 Test powiadomień z listy projektów – działa.\n\n" . \MKProjects\App\AppShell::url(), Notifier::layout('Test powiadomień', '<p style="margin:12px 0 0">' . Notifier::dot('ok') . '&nbsp; Powiadomienia z listy projektów działają – tak będą wyglądać alerty.</p>', wp_date('j.m.Y, H:i')));
 
         return ($result[$channel] ?? null) === true
             ? ['sent' => true]
