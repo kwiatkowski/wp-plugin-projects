@@ -58,6 +58,8 @@ final class ReportPuller
         $rows = $this->rows($this->run($this->projects->pullTargets(), $ownToken));
         // the plugins just reported against the known vulnerabilities (the API's answers kept half a day)
         $this->vulnerabilities->scan();
+        // what the reports miss a translation of – has it one to install
+        (new TranslationPacks())->warm();
         $this->alerts?->run();
 
         return $rows;
@@ -112,6 +114,7 @@ final class ReportPuller
 
         $result = $this->run([$target])[$id];
         $this->vulnerabilities->scan([$id]);
+        (new TranslationPacks())->warm();
         $project = $this->projects->find($id);
 
         return is_wp_error($project) ? $project : $result + ['project' => $project];

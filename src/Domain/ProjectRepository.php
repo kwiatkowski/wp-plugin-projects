@@ -723,11 +723,13 @@ final class ProjectRepository
         $project['phpVersion'] = is_array($report) && is_string($report['phpVersion'] ?? null) ? $report['phpVersion'] : null;
         $project['phpSapi'] = is_array($report) && is_string($report['phpSapi'] ?? null) ? $report['phpSapi'] : null;
         $project['phpIni'] = is_array($report) && is_array($report['phpIni'] ?? null) ? array_map('strval', $report['phpIni']) : null;
-        // what has no translation for the site's language at all (plugin_meden 1.18.0 / MK Core) – null: not reported
+        // what has no translation for the site's language (plugin_meden 1.18.0 / MK Core) – only what has one to install
+        // (TranslationPacks; not asked yet – kept); null: not reported
         $missing = is_array($report) && is_array($report['missingTranslations'] ?? null) ? $report['missingTranslations'] : null;
+        $locale = (string) ($missing['locale'] ?? '');
         $project['missingTranslations'] = $missing !== null ? [
-            'locale' => (string) ($missing['locale'] ?? ''),
-            'items' => array_values(array_filter((array) ($missing['items'] ?? []), 'is_array')),
+            'locale' => $locale,
+            'items' => array_values(array_filter((array) ($missing['items'] ?? []), static fn (mixed $item): bool => is_array($item) && TranslationPacks::available($item, $locale) !== false)),
         ] : null;
         // where the site uses reCAPTCHA (CF7, Wordfence's login): the site key, the secret's SHA-256 – the dialog checks
         // them against the project's keys; null – the report doesn't look (plugin_meden before 1.15.0)
