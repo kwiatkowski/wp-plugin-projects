@@ -305,6 +305,11 @@ final class Alerts
         $sections = ['down' => [], 'updates' => [], 'vulnerabilities' => [], 'ssl' => [], 'report' => []];
 
         foreach ($this->projects->all('admin') as $project) {
+            // the sites being built and the suspended ones aren't watched – nor summed up
+            if (in_array($project['status'] ?? '', ProjectRepository::UNWATCHED, true)) {
+                continue;
+            }
+
             $id = (int) $project['id'];
             $item = static fn (string $tone, string $detail): array => ['tone' => $tone, 'name' => (string) $project['name'], 'url' => $project['url'] ?? null, 'detail' => $detail];
 
