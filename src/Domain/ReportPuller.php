@@ -47,7 +47,7 @@ final class ReportPuller
 
     /**
      * Every project in the list's order: ok – true the report came, false it didn't (error says why), null not asked
-     * (the list's own site with $ownToken – it has just sent its report).
+     * (the list's own site is asked over HTTP too – PHP as the site runs it, not as WP-CLI does).
      *
      * @return array<int, array{name: string, reportedAt: string|null, ok: bool|null, error: string|null, changes: array<int, array<string, mixed>>}>
      */
@@ -138,7 +138,6 @@ final class ReportPuller
             $results[$target['id']] = match (true) {
                 $target['token'] === null => ['ok' => false, 'error' => 'brak tokenu', 'changes' => []],
                 $target['url'] === null => ['ok' => false, 'error' => 'brak domeny', 'changes' => []],
-                $ownToken !== '' && hash_equals($target['token'], $ownToken) => ['ok' => null, 'error' => null, 'changes' => []],
                 default => null,
             };
 

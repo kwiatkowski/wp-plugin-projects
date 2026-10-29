@@ -719,6 +719,10 @@ final class ProjectRepository
             is_array($report) && is_array($report['translationUpdates'] ?? null) ? $report['translationUpdates'] : [],
             'is_array',
         ));
+        // PHP as the site runs it: the full version, the SAPI and its limits (plugin_meden 1.19.0 / MK Core) – null: not reported
+        $project['phpVersion'] = is_array($report) && is_string($report['phpVersion'] ?? null) ? $report['phpVersion'] : null;
+        $project['phpSapi'] = is_array($report) && is_string($report['phpSapi'] ?? null) ? $report['phpSapi'] : null;
+        $project['phpIni'] = is_array($report) && is_array($report['phpIni'] ?? null) ? array_map('strval', $report['phpIni']) : null;
         // what has no translation for the site's language at all (plugin_meden 1.18.0 / MK Core) – null: not reported
         $missing = is_array($report) && is_array($report['missingTranslations'] ?? null) ? $report['missingTranslations'] : null;
         $project['missingTranslations'] = $missing !== null ? [

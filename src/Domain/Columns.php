@@ -29,7 +29,8 @@ final class Columns
         // the home page over 30 days (History)
         'uptime' => ['uptime', 'responseMs'],
         'server' => ['server', 'serverUrl', 'serverAccount'],
-        'php' => ['php'],
+        // the version, the full one (patched or not); the limits – the tooltip
+        'php' => ['php', 'phpVersion', 'phpSapi', 'phpIni'],
         'engine' => ['engine', 'version'],
         'theme' => ['theme'],
         'repo' => ['repo'],

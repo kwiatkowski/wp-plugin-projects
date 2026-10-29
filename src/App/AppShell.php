@@ -230,6 +230,8 @@ final class AppShell
             ],
             'latestWordpress' => self::latestWordpress(),
             // MK Core of the list's own site – the newest there is; the sites reporting through an older one are marked
+            // PHP's branches from php.net: state, newest release, end of support – the PHP column's colours
+            'phpBranches' => \MKProjects\Domain\PhpReleases::branches(),
             'mkCoreVersion' => defined('MK_CORE_VERSION') ? (string) MK_CORE_VERSION : null,
             'wordpressVersions' => $manage ? self::wordpressVersions() : [],
             'siteName' => get_bloginfo('name'),
