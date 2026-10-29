@@ -161,8 +161,9 @@ final class ReportPuller
                 ];
             }
 
-            // every home page too – the availability of a site without a token (no report) counts as well
-            if ($target['url'] !== null) {
+            // every home page too – the availability of a site without a token (no report) counts as well; not of a
+            // site in progress or suspended
+            if ($target['url'] !== null && $target['watched']) {
                 $homes[] = $target['id'];
                 $auth = $target['auth'] ? ['Authorization' => 'Basic ' . base64_encode(implode(':', $target['auth']))] : [];
                 $requests["home-{$target['id']}"] = ['url' => $target['url'] . '/', 'headers' => $auth];
@@ -214,6 +215,12 @@ final class ReportPuller
             $home = $responses["home-$id"] ?? null;
             $code = $home instanceof Response ? (int) $home->status_code : 0;
 
+            // not watched: nothing to check between the reports, and the report doesn't touch the status
+            if (!$target['watched'] && !$reports) {
+                $results[$id] = ['ok' => null, 'error' => null, 'changes' => []];
+                continue;
+            }
+
             // the status check: the home page alone – no report was asked for
             if (!$reports) {
                 $change = $this->projects->applyHomeCode($id, $code);
@@ -225,7 +232,7 @@ final class ReportPuller
 
             if ($report !== null) {
                 // the list's own look at the home page counts, not the site's
-                $project = $this->projects->applyReport($target['token'], ['homeCode' => $code] + $report);
+                $project = $this->projects->applyReport($target['token'], ($target['watched'] ? ['homeCode' => $code] : []) + $report);
 
                 if (!is_wp_error($project)) {
                     $results[$id] = ['ok' => true, 'error' => null, 'changes' => $project['changes']];
@@ -235,7 +242,7 @@ final class ReportPuller
                 $error = $project->get_error_message();
             }
 
-            $change = $this->projects->applyHomeCode($id, $code);
+            $change = $target['watched'] ? $this->projects->applyHomeCode($id, $code) : null;
             $results[$id] = ['ok' => false, 'error' => $error, 'changes' => $change ? [$change] : []];
         }
 

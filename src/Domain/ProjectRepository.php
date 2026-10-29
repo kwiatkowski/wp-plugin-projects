@@ -28,6 +28,9 @@ final class ProjectRepository
     ) {
     }
 
+    /** statuses whose home page the list doesn't check – set by hand, the site isn't live */
+    public const UNWATCHED = ['dev', 'suspended'];
+
     /** the home pages' availability and response times – read once per request, for every project */
     private ?array $summaries = null;
 
@@ -38,7 +41,9 @@ final class ProjectRepository
      */
     public function history(int $id): array|WP_Error
     {
-        return $this->post($id) ? $this->history->project($id) : $this->notFound();
+        return $this->post($id)
+            ? $this->history->project($id, !in_array(get_post_meta($id, Fields::metaKey('status'), true), self::UNWATCHED, true))
+            : $this->notFound();
     }
 
     /**
@@ -436,6 +441,8 @@ final class ProjectRepository
                 ? [$user, (string) $this->password($post->ID, 'auth')]
                 : null,
             'staging' => $staging !== '' ? $staging : null,
+            // a site in progress or suspended: its home page isn't checked (no availability, no response times)
+            'watched' => !in_array(get_post_meta($post->ID, Fields::metaKey('status'), true), self::UNWATCHED, true),
             'stagingAuth' => ($stagingUser = (string) get_post_meta($post->ID, Fields::metaKey('stagingAuthUser'), true)) !== ''
                 ? [$stagingUser, (string) $this->password($post->ID, 'staging')]
                 : null,
@@ -745,9 +752,11 @@ final class ProjectRepository
         $staging = json_decode((string) get_post_meta($post->ID, ContentTypes::META_STAGING, true), true);
         $project['staging'] = is_array($staging) ? $staging : null;
         // the home page over 30 days: availability in %, the mean response time of the last day
+        // (none for a site in progress or suspended – it isn't checked)
         $this->summaries ??= $this->history->summaries();
-        $project['uptime'] = $this->summaries[$post->ID]['uptime'] ?? null;
-        $project['responseMs'] = $this->summaries[$post->ID]['ms'] ?? null;
+        $watched = !in_array($project['status'], self::UNWATCHED, true);
+        $project['uptime'] = $watched ? $this->summaries[$post->ID]['uptime'] ?? null : null;
+        $project['responseMs'] = $watched ? $this->summaries[$post->ID]['ms'] ?? null : null;
         // the plugins' known vulnerabilities (VulnerabilityScanner) – null: not scanned yet
         $project['vulnerabilities'] = VulnerabilityScanner::of($post->ID)['items'] ?? null;
         // the alerts muted until (Alerts) – null: not muted

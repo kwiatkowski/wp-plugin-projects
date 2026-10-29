@@ -193,11 +193,16 @@ final class History
      *
      * @return array<string, mixed>
      */
-    public function project(int $projectId): array
+    public function project(int $projectId, bool $home = true): array
     {
         $targets = [];
 
         foreach (['home' => self::UP_HOME, 'staging' => self::UP_STAGING] as $target => $up) {
+            // a site in progress or suspended – its home page isn't watched, its old checks aren't shown either
+            if ($target === 'home' && !$home) {
+                continue;
+            }
+
             $checks = $this->checks($projectId, $target, $up, 30 * DAY_IN_SECONDS);
 
             if (!$checks) {
