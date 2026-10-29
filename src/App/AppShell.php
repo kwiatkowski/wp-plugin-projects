@@ -229,6 +229,8 @@ final class AppShell
                 'guest' => $owner ? Columns::forView('guest') : null,
             ],
             'latestWordpress' => self::latestWordpress(),
+            // MK Core of the list's own site – the newest there is; the sites reporting through an older one are marked
+            'mkCoreVersion' => defined('MK_CORE_VERSION') ? (string) MK_CORE_VERSION : null,
             'wordpressVersions' => $manage ? self::wordpressVersions() : [],
             'siteName' => get_bloginfo('name'),
             'homeUrl' => home_url('/'),
