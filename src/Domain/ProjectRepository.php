@@ -719,6 +719,12 @@ final class ProjectRepository
             is_array($report) && is_array($report['translationUpdates'] ?? null) ? $report['translationUpdates'] : [],
             'is_array',
         ));
+        // what has no translation for the site's language at all (plugin_meden 1.18.0 / MK Core) – null: not reported
+        $missing = is_array($report) && is_array($report['missingTranslations'] ?? null) ? $report['missingTranslations'] : null;
+        $project['missingTranslations'] = $missing !== null ? [
+            'locale' => (string) ($missing['locale'] ?? ''),
+            'items' => array_values(array_filter((array) ($missing['items'] ?? []), 'is_array')),
+        ] : null;
         // where the site uses reCAPTCHA (CF7, Wordfence's login): the site key, the secret's SHA-256 – the dialog checks
         // them against the project's keys; null – the report doesn't look (plugin_meden before 1.15.0)
         $project['recaptcha'] = !is_array($report) || !is_array($report['recaptcha'] ?? null) ? null : array_values(array_map(

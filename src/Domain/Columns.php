@@ -42,7 +42,7 @@ final class Columns
         'miModal' => ['miModal'],
         'todo' => ['todo'],
         // the dot and its popup: when, what sent it, what waits, the certificate; `token` only as "there is one"
-        'report' => ['reportedAt', 'reporter', 'updates', 'translationUpdates', 'ssl', 'token', 'vulnerabilities'],
+        'report' => ['reportedAt', 'reporter', 'updates', 'translationUpdates', 'ssl', 'token', 'vulnerabilities', 'missingTranslations'],
     ];
 
     /** a viewer sees the theme's tooltip too (its version and author) */
