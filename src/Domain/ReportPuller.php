@@ -41,6 +41,7 @@ final class ReportPuller
         private readonly SslChecker $ssl = new SslChecker(),
         private readonly History $history = new History(),
         private readonly VulnerabilityScanner $vulnerabilities = new VulnerabilityScanner(),
+        private readonly ?Alerts $alerts = null,
     ) {
     }
 
@@ -57,6 +58,7 @@ final class ReportPuller
         $rows = $this->rows($this->run($this->projects->pullTargets(), $ownToken));
         // the plugins just reported against the known vulnerabilities (the API's answers kept half a day)
         $this->vulnerabilities->scan();
+        $this->alerts?->run();
 
         return $rows;
     }
@@ -69,7 +71,11 @@ final class ReportPuller
      */
     public function check(): array
     {
-        return $this->rows($this->run($this->projects->pullTargets(), '', false));
+        $rows = $this->rows($this->run($this->projects->pullTargets(), '', false));
+        // what changed – down, back up – goes out at once
+        $this->alerts?->run();
+
+        return $rows;
     }
 
     /** whether the cron's next run should pull everything – an hour since the last full pull */

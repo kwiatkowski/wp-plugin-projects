@@ -140,6 +140,24 @@ final class History
     }
 
     /**
+     * The last check of a project's target – its code and why it failed.
+     *
+     * @return array{code: int, error: string|null}|null
+     */
+    public function lastCheck(int $projectId, string $target): ?array
+    {
+        global $wpdb;
+
+        $row = $wpdb->get_row($wpdb->prepare(
+            'SELECT code, error FROM ' . self::checksTable() . ' WHERE project_id = %d AND target = %s ORDER BY checked_at DESC, id DESC LIMIT 1',
+            $projectId,
+            $target,
+        ), ARRAY_A);
+
+        return $row ? ['code' => (int) $row['code'], 'error' => $row['error']] : null;
+    }
+
+    /**
      * Every project's home page over the last 30 days, for the list: availability in % (null – never checked) and the
      * mean response time of the last 24 hours, in ms.
      *

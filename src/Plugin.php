@@ -7,6 +7,7 @@ namespace MKProjects;
 use MKProjects\App\AppShell;
 use MKProjects\Cli\SecretsCommand;
 use MKProjects\Domain\CategoryRepository;
+use MKProjects\Domain\Alerts;
 use MKProjects\Domain\ChangeMarker;
 use MKProjects\Domain\History;
 use MKProjects\Domain\ProjectRepository;
@@ -14,6 +15,7 @@ use MKProjects\Domain\ReportPuller;
 use MKProjects\Domain\SiteUpdater;
 use MKProjects\Domain\TodoBridge;
 use MKProjects\Domain\Viewer;
+use MKProjects\Rest\AlertsController;
 use MKProjects\Rest\CategoriesController;
 use MKProjects\Rest\ColumnsController;
 use MKProjects\Rest\ProjectsController;
@@ -47,10 +49,12 @@ final class Plugin
         (new ColumnsController())->register();
         (new ViewerController())->register();
         (new ReportController($projects))->register();
-        (new UpdateController(new SiteUpdater($projects)))->register();
+        $alerts = new Alerts($projects);
+        (new UpdateController(new SiteUpdater($projects, $alerts)))->register();
+        (new AlertsController($alerts))->register();
 
         // `wp projects-report` on the list's site (MK Core) fetches every other site's report; the dialog – one of them
-        $puller = new ReportPuller($projects);
+        $puller = new ReportPuller($projects, alerts: $alerts);
         (new PullController($puller))->register();
         add_filter('mk_core/report/pull', static fn (mixed $pulled, string $ownToken = ''): array => $puller->pull($ownToken), 10, 2);
         // the cron runs it every 5 minutes: everything once an hour, only the home pages and stagings in between

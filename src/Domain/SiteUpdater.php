@@ -15,7 +15,7 @@ final class SiteUpdater
 {
     public const PATH = '/wp-json/projects-report/v1/update';
 
-    public function __construct(private readonly ProjectRepository $projects)
+    public function __construct(private readonly ProjectRepository $projects, private readonly ?Alerts $alerts = null)
     {
     }
 
@@ -52,6 +52,12 @@ final class SiteUpdater
 
         $code = (int) wp_remote_retrieve_response_code($response);
         $data = json_decode((string) wp_remote_retrieve_body($response), true);
+
+        // started: the site may be down for a moment – its alerts wait (and the history says why)
+        if ($method === 'POST' && $code === 200 && is_array($data)) {
+            $this->alerts?->mute($id, (int) (Alerts::UPDATE_MUTE / MINUTE_IN_SECONDS), 'aktualizacja z listy');
+            (new History())->event($id, 'update', ['text' => $scope === 'translations' ? 'Aktualizacja tłumaczeń uruchomiona z listy' : 'Aktualizacja uruchomiona z listy']);
+        }
 
         return match (true) {
             $code === 200 && is_array($data) => $data,
