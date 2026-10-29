@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MKProjects;
 
 use MKProjects\App\AppShell;
+use MKProjects\Cli\SecretsCommand;
 use MKProjects\Domain\CategoryRepository;
 use MKProjects\Domain\ChangeMarker;
 use MKProjects\Domain\ProjectRepository;
@@ -54,6 +55,10 @@ final class Plugin
         add_filter('mk_core/report/full_due', static fn (): bool => $puller->fullDue());
         add_filter('mk_core/report/check', static fn (): array => $puller->check());
         (new AppShell())->register();
+
+        if (defined('WP_CLI') && WP_CLI) {
+            \WP_CLI::add_command('projects-secrets', new SecretsCommand($projects));
+        }
 
         add_filter('mk_core/dashboard/packages', [self::class, 'dashboardCard']);
 

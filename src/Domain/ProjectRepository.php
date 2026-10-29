@@ -23,6 +23,7 @@ final class ProjectRepository
     public function __construct(
         private readonly CategoryRepository $categories,
         private readonly TodoBridge $todo,
+        private readonly Secrets $secrets = new Secrets(),
     ) {
     }
 
@@ -197,8 +198,7 @@ final class ProjectRepository
     ];
 
     /**
-     * A password (panel – the panel's, auth – Basic Auth's), decrypted; null – none (or it can't be read any more: the
-     * site's salts changed).
+     * A password (panel – the panel's, auth – Basic Auth's), decrypted; null – none (or no key opens it – Secrets).
      */
     public function password(int $id, string $kind = 'panel'): string|null|WP_Error
     {
@@ -206,20 +206,14 @@ final class ProjectRepository
             return $this->notFound();
         }
 
-        $stored = base64_decode((string) get_post_meta($id, self::PASSWORDS[$kind] ?? ContentTypes::META_PASSWORD, true), true);
+        $stored = (string) get_post_meta($id, self::PASSWORDS[$kind] ?? ContentTypes::META_PASSWORD, true);
 
-        if (!$stored || strlen($stored) <= SODIUM_CRYPTO_SECRETBOX_NONCEBYTES) {
-            return null;
-        }
-
-        $plain = sodium_crypto_secretbox_open(substr($stored, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES), substr($stored, 0, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES), $this->secretKey());
-
-        return $plain === false ? null : $plain;
+        return $stored === '' ? null : $this->secrets->decrypt($stored);
     }
 
     /**
-     * Saves a password (panel / auth) encrypted (libsodium, the key from the site's AUTH salt – a database dump alone
-     * doesn't reveal it); empty or null removes it. Returns the project.
+     * Saves a password (panel / auth) encrypted (Secrets – the list's own key, outside the database: a database dump
+     * alone doesn't reveal it); empty or null removes it. Returns the project.
      *
      * @return array<string, mixed>|WP_Error
      */
@@ -235,16 +229,37 @@ final class ProjectRepository
         if ($password === null || $password === '') {
             delete_post_meta($id, $key);
         } else {
-            $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-            update_post_meta($id, $key, base64_encode($nonce . sodium_crypto_secretbox(mb_substr($password, 0, 500), $nonce, $this->secretKey())));
+            update_post_meta($id, $key, $this->secrets->encrypt(mb_substr($password, 0, 500)));
         }
 
         return $this->toArray($post);
     }
 
-    private function secretKey(): string
+    /**
+     * Every stored secret onto the list's own key (Secrets) – those still under the AUTH salt's; how many moved, and how
+     * many no key opens (lost).
+     *
+     * @return array{moved: int, unreadable: int}
+     */
+    public function rekeySecrets(): array
     {
-        return sodium_crypto_generichash(wp_salt('auth') . '|wp-plugin-projects|password', '', SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
+        $moved = $unreadable = 0;
+
+        foreach (self::PASSWORDS as $key) {
+            foreach (get_posts(['post_type' => ContentTypes::PROJECT, 'post_status' => 'any', 'numberposts' => -1, 'fields' => 'ids', 'meta_key' => $key]) as $id) {
+                $stored = (string) get_post_meta($id, $key, true);
+                $plain = $stored === '' ? null : $this->secrets->decrypt($stored);
+
+                if ($plain === null) {
+                    $unreadable += $stored === '' ? 0 : 1;
+                } elseif ($this->secrets->legacy($stored)) {
+                    update_post_meta($id, $key, $this->secrets->encrypt($plain));
+                    $moved++;
+                }
+            }
+        }
+
+        return ['moved' => $moved, 'unreadable' => $unreadable];
     }
 
     /** A new reporter token – the old one stops working at once. */
