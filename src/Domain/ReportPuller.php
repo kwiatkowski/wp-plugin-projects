@@ -7,6 +7,7 @@ namespace MKProjects\Domain;
 use WP_Error;
 use WpOrg\Requests\Exception as RequestsException;
 use WpOrg\Requests\Exception\Transport\Curl as CurlException;
+use WpOrg\Requests\Hooks;
 use WpOrg\Requests\Requests;
 use WpOrg\Requests\Response;
 
@@ -29,10 +30,16 @@ final class ReportPuller
     /** a cron run a bit early still counts – every 5 minutes, it would otherwise miss the hour by seconds */
     private const SLACK = 5 * MINUTE_IN_SECONDS;
     private const LAST_FULL = 'wp_plugin_projects_last_full_pull';
+    /** a home page or staging that didn't answer (or answered 5xx) is asked once more after this many seconds – a blip
+     *  of the network doesn't take a site down */
+    private const RETRY_AFTER = 5;
+    /** this many requests at once – more of them at a time (several sites share a server) inflate the response times */
+    private const AT_ONCE = 4;
 
     public function __construct(
         private readonly ProjectRepository $projects,
         private readonly SslChecker $ssl = new SslChecker(),
+        private readonly History $history = new History(),
     ) {
     }
 
@@ -45,6 +52,7 @@ final class ReportPuller
     public function pull(string $ownToken = ''): array
     {
         update_option(self::LAST_FULL, time(), false);
+        $this->history->prune();
 
         return $this->rows($this->run($this->projects->pullTargets(), $ownToken));
     }
@@ -130,6 +138,7 @@ final class ReportPuller
 
         $requests = [];
         $stagings = [];
+        $homes = [];
 
         // every staging – with its own Basic Auth login – answers or not; a token isn't needed for it
         foreach ($all as $target) {
@@ -140,6 +149,13 @@ final class ReportPuller
                     'headers' => $target['stagingAuth'] ? ['Authorization' => 'Basic ' . base64_encode(implode(':', $target['stagingAuth']))] : [],
                 ];
             }
+
+            // every home page too – the availability of a site without a token (no report) counts as well
+            if ($target['url'] !== null) {
+                $homes[] = $target['id'];
+                $auth = $target['auth'] ? ['Authorization' => 'Basic ' . base64_encode(implode(':', $target['auth']))] : [];
+                $requests["home-{$target['id']}"] = ['url' => $target['url'] . '/', 'headers' => $auth];
+            }
         }
 
         foreach ($targets as $id => $target) {
@@ -149,24 +165,38 @@ final class ReportPuller
             $auth = $target['auth'] ? ['Authorization' => 'Basic ' . base64_encode(implode(':', $target['auth']))] : [];
             $token = ['X-Projects-Token' => $target['token']] + ($auth ?: ['Authorization' => 'Bearer ' . $target['token']]);
 
-            $requests["home-$id"] = ['url' => $target['url'] . '/', 'headers' => $auth];
-
             if ($reports) {
                 $requests["report-$id"] = ['url' => $target['url'] . self::PATH, 'headers' => ['Accept' => 'application/json'] + $auth + $token];
             }
         }
 
-        $responses = $requests ? Requests::request_multiple($requests, [
-            'timeout' => 20,
-            'connect_timeout' => 10,
-            'redirects' => 5,
-            'verify' => ABSPATH . WPINC . '/certificates/ca-bundle.crt',
-            'useragent' => 'wp-plugin-projects/' . WP_PLUGIN_PROJECTS_VERSION,
-        ]) : [];
+        $times = [];
+        $responses = $this->fetch($requests, $times);
+
+        // a home page or staging without an answer – once more a moment later, before it counts
+        $again = array_filter($requests, fn (string $key): bool => !str_starts_with($key, 'report-') && !self::answered($responses[$key] ?? null), ARRAY_FILTER_USE_KEY);
+
+        if ($again) {
+            sleep(self::RETRY_AFTER);
+            $responses = $this->fetch($again, $times) + $responses;
+        }
 
         foreach ($stagings as $id) {
             $staging = $responses["staging-$id"] ?? null;
-            $this->projects->applyStaging($id, $staging instanceof Response ? (int) $staging->status_code : 0, self::failure($staging));
+            $code = $staging instanceof Response ? (int) $staging->status_code : 0;
+            $this->projects->applyStaging($id, $code, self::failure($staging));
+            $this->history->check($id, 'staging', $code, $times["staging-$id"] ?? null, self::failure($staging));
+        }
+
+        foreach ($homes as $id) {
+            $home = $responses["home-$id"] ?? null;
+            $this->history->check($id, 'home', $home instanceof Response ? (int) $home->status_code : 0, $times["home-$id"] ?? null, self::failure($home));
+
+            // a site without a token (no report) – its status from the home page alone
+            if (!isset($targets[$id]) && $results[$id]['ok'] !== null) {
+                $change = $this->projects->applyHomeCode($id, $home instanceof Response ? (int) $home->status_code : 0);
+                $results[$id]['changes'] = $change ? [$change] : [];
+            }
         }
 
         foreach ($targets as $id => $target) {
@@ -199,6 +229,49 @@ final class ReportPuller
         }
 
         return $results;
+    }
+
+    /**
+     * The requests, AT_ONCE at a time; how long each took (ms, redirects included) goes into $times.
+     *
+     * @param array<string, array<string, mixed>> $requests
+     * @param array<string, int> $times
+     * @return array<string, mixed> a Response, or the exception of a request that got no answer
+     */
+    private function fetch(array $requests, array &$times): array
+    {
+        foreach ($requests as $key => &$request) {
+            unset($times[$key]);
+            // curl's own measure of each request – Requests' Response doesn't keep it
+            $hooks = new Hooks();
+            $hooks->register('curl.after_request', static function (mixed $headers, mixed $info = null) use ($key, &$times): void {
+                if (is_array($info) && isset($info['total_time'])) {
+                    $times[$key] = ($times[$key] ?? 0) + (int) round((float) $info['total_time'] * 1000);
+                }
+            });
+            $request['options'] = ['hooks' => $hooks];
+        }
+
+        unset($request);
+        $responses = [];
+
+        foreach (array_chunk($requests, self::AT_ONCE, true) as $batch) {
+            $responses += Requests::request_multiple($batch, [
+                'timeout' => 20,
+                'connect_timeout' => 10,
+                'redirects' => 5,
+                'verify' => ABSPATH . WPINC . '/certificates/ca-bundle.crt',
+                'useragent' => 'wp-plugin-projects/' . WP_PLUGIN_PROJECTS_VERSION,
+            ]);
+        }
+
+        return $responses;
+    }
+
+    /** whether a request got an answer that counts – not a server error (5xx), not none */
+    private static function answered(mixed $response): bool
+    {
+        return $response instanceof Response && $response->status_code > 0 && $response->status_code < 500;
     }
 
     /**

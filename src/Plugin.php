@@ -8,6 +8,7 @@ use MKProjects\App\AppShell;
 use MKProjects\Cli\SecretsCommand;
 use MKProjects\Domain\CategoryRepository;
 use MKProjects\Domain\ChangeMarker;
+use MKProjects\Domain\History;
 use MKProjects\Domain\ProjectRepository;
 use MKProjects\Domain\ReportPuller;
 use MKProjects\Domain\SiteUpdater;
@@ -38,6 +39,7 @@ final class Plugin
         $todo = new TodoBridge();
         $projects = new ProjectRepository($categories, $todo);
 
+        History::install();
         (new ContentTypes())->register();
         (new ChangeMarker())->register();
         (new ProjectsController($projects, $todo))->register();

@@ -12,7 +12,7 @@ namespace MKProjects\Domain;
 final class Columns
 {
     public const ALL = [
-        'name', 'status', 'server', 'php', 'engine', 'theme', 'repo', 'deploy', 'bedrock', 'security',
+        'name', 'status', 'uptime', 'server', 'php', 'engine', 'theme', 'repo', 'deploy', 'bedrock', 'security',
         'local', 'stage', 'acf', 'miModal', 'todo', 'report',
     ];
 
@@ -26,6 +26,8 @@ final class Columns
     private const FIELDS = [
         'name' => [],
         'status' => ['status'],
+        // the home page over 30 days (History)
+        'uptime' => ['uptime', 'responseMs'],
         'server' => ['server', 'serverUrl', 'serverAccount'],
         'php' => ['php'],
         'engine' => ['engine', 'version'],

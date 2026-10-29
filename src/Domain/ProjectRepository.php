@@ -24,7 +24,21 @@ final class ProjectRepository
         private readonly CategoryRepository $categories,
         private readonly TodoBridge $todo,
         private readonly Secrets $secrets = new Secrets(),
+        private readonly History $history = new History(),
     ) {
+    }
+
+    /** the home pages' availability and response times – read once per request, for every project */
+    private ?array $summaries = null;
+
+    /**
+     * A project's history (History::project()).
+     *
+     * @return array<string, mixed>|WP_Error
+     */
+    public function history(int $id): array|WP_Error
+    {
+        return $this->post($id) ? $this->history->project($id) : $this->notFound();
     }
 
     /**
@@ -332,6 +346,7 @@ final class ProjectRepository
         $project = $this->toArray($post);
         $project['previousReportAt'] = $before['reportedAt'];
         $project['changes'] = $this->reportChanges($before, $project, is_array($previous) ? $previous : [], $report);
+        $this->logChanges($post->ID, $project['changes']);
 
         return $project;
     }
@@ -351,8 +366,10 @@ final class ProjectRepository
         }
 
         $this->save($id, ['status' => $status]);
+        $change = ['what' => 'status', 'from' => $before, 'to' => $status];
+        $this->logChanges($id, [$change]);
 
-        return ['what' => 'status', 'from' => $before, 'to' => $status];
+        return $change;
     }
 
     /** Online when the home page answers without an error (2xx, 3xx – or 401: it works, behind a password), else offline; null – a site in progress or suspended keeps its status (set by hand). */
@@ -426,6 +443,21 @@ final class ProjectRepository
     }
 
     /**
+     * What changed goes into the history: the status as its own event (down, back), the rest as "change" – the users
+     * online don't, they change all the time.
+     *
+     * @param array<int, array<string, mixed>> $changes
+     */
+    private function logChanges(int $id, array $changes): void
+    {
+        foreach ($changes as $change) {
+            if (($change['what'] ?? '') !== 'online') {
+                $this->history->event($id, $change['what'] === 'status' ? 'status' : 'change', $change);
+            }
+        }
+    }
+
+    /**
      * What a report changed: the project's reported fields, the plugins (version, installed, removed) and users,
      * against the report before it.
      *
@@ -465,6 +497,20 @@ final class ProjectRepository
 
         foreach (array_diff_key($old, $new) as $file => $plugin) {
             $changes[] = ['what' => 'plugin', 'name' => (string) ($plugin['name'] ?? $file), 'from' => (string) ($plugin['version'] ?? ''), 'to' => null];
+        }
+
+        // the roles' counts – a new administrator shows up in the history
+        $roles = static fn (array $data): array => array_column(array_filter((array) ($data['users']['roles'] ?? []), 'is_array'), null, 'role');
+        $oldRoles = $roles($previous);
+        $newRoles = $roles($report);
+
+        foreach (array_keys($oldRoles + $newRoles) as $role) {
+            $from = isset($oldRoles[$role]) ? (int) ($oldRoles[$role]['count'] ?? 0) : 0;
+            $to = isset($newRoles[$role]) ? (int) ($newRoles[$role]['count'] ?? 0) : 0;
+
+            if ($from !== $to) {
+                $changes[] = ['what' => 'role', 'name' => (string) ($newRoles[$role]['name'] ?? $oldRoles[$role]['name'] ?? $role), 'role' => (string) $role, 'from' => $from, 'to' => $to];
+            }
         }
 
         foreach (['total' => 'users', 'online' => 'online'] as $key => $what) {
@@ -698,6 +744,10 @@ final class ProjectRepository
         $project['hasRecaptchaSecret'] = get_post_meta($post->ID, ContentTypes::META_RECAPTCHA_SECRET, true) !== '';
         $staging = json_decode((string) get_post_meta($post->ID, ContentTypes::META_STAGING, true), true);
         $project['staging'] = is_array($staging) ? $staging : null;
+        // the home page over 30 days: availability in %, the mean response time of the last day
+        $this->summaries ??= $this->history->summaries();
+        $project['uptime'] = $this->summaries[$post->ID]['uptime'] ?? null;
+        $project['responseMs'] = $this->summaries[$post->ID]['ms'] ?? null;
         $project['updatedAt'] = $post->post_modified_gmt !== '0000-00-00 00:00:00' ? gmdate(DATE_ATOM, (int) strtotime($post->post_modified_gmt . ' UTC')) : null;
 
         return $project;

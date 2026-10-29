@@ -93,6 +93,14 @@ final class ProjectsController extends Controller
             'args' => ['id' => ['type' => 'integer', 'required' => true]],
         ]);
 
+        // the availability, the response times, the outages and what happened – the dialog's "Historia"
+        register_rest_route(self::NAMESPACE, '/projects/(?P<id>\d+)/history', [
+            'methods' => WP_REST_Server::READABLE,
+            'callback' => fn (WP_REST_Request $request) => $this->respond($this->projects->history((int) $request['id'])),
+            'permission_callback' => [$this, 'permission'],
+            'args' => ['id' => ['type' => 'integer', 'required' => true]],
+        ]);
+
         register_rest_route(self::NAMESPACE, '/projects/(?P<id>\d+)/password', [
             'args' => [
                 'id' => ['type' => 'integer', 'required' => true],
