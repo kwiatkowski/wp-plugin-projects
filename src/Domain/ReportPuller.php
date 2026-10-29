@@ -40,6 +40,7 @@ final class ReportPuller
         private readonly ProjectRepository $projects,
         private readonly SslChecker $ssl = new SslChecker(),
         private readonly History $history = new History(),
+        private readonly VulnerabilityScanner $vulnerabilities = new VulnerabilityScanner(),
     ) {
     }
 
@@ -53,8 +54,11 @@ final class ReportPuller
     {
         update_option(self::LAST_FULL, time(), false);
         $this->history->prune();
+        $rows = $this->rows($this->run($this->projects->pullTargets(), $ownToken));
+        // the plugins just reported against the known vulnerabilities (the API's answers kept half a day)
+        $this->vulnerabilities->scan();
 
-        return $this->rows($this->run($this->projects->pullTargets(), $ownToken));
+        return $rows;
     }
 
     /**
@@ -101,6 +105,7 @@ final class ReportPuller
         }
 
         $result = $this->run([$target])[$id];
+        $this->vulnerabilities->scan([$id]);
         $project = $this->projects->find($id);
 
         return is_wp_error($project) ? $project : $result + ['project' => $project];

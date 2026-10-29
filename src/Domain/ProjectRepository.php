@@ -748,6 +748,8 @@ final class ProjectRepository
         $this->summaries ??= $this->history->summaries();
         $project['uptime'] = $this->summaries[$post->ID]['uptime'] ?? null;
         $project['responseMs'] = $this->summaries[$post->ID]['ms'] ?? null;
+        // the plugins' known vulnerabilities (VulnerabilityScanner) – null: not scanned yet
+        $project['vulnerabilities'] = VulnerabilityScanner::of($post->ID)['items'] ?? null;
         $project['updatedAt'] = $post->post_modified_gmt !== '0000-00-00 00:00:00' ? gmdate(DATE_ATOM, (int) strtotime($post->post_modified_gmt . ' UTC')) : null;
 
         return $project;
