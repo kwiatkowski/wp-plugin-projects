@@ -480,7 +480,9 @@ final class ProjectRepository
             'domains' => self::otherDomains($post->ID),
             // a site in progress or suspended: its home page isn't checked (no availability, no response times)
             'watched' => !in_array(get_post_meta($post->ID, Fields::metaKey('status'), true), self::UNWATCHED, true),
+            // the staging's – unless it guards only the staging's panel
             'stagingAuth' => ($stagingUser = (string) get_post_meta($post->ID, Fields::metaKey('stagingAuthUser'), true)) !== ''
+                && get_post_meta($post->ID, Fields::metaKey('stagingAuthScope'), true) !== 'panel'
                 ? [$stagingUser, (string) $this->password($post->ID, 'staging')]
                 : null,
         ];

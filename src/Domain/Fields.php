@@ -46,6 +46,8 @@ final class Fields
         // what that Basic Auth guards: the whole site (null, "site" – the list sends it) or only the panel ("panel" – the
         // list doesn't; the panel's address opens with it)
         'authScope' => ['type' => 'string', 'enum' => ['site', 'panel']],
+        // the same for the staging's Basic Auth – "panel": the list checks the staging without it
+        'stagingAuthScope' => ['type' => 'string', 'enum' => ['site', 'panel']],
         // staging behind HTTP Basic Auth – the list checks it with these (the password apart, encrypted)
         'stagingAuthUser' => ['type' => 'string', 'max' => 100],
         'acf' => ['type' => 'boolean', 'reported' => true],
