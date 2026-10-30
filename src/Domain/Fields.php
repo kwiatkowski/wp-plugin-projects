@@ -50,6 +50,8 @@ final class Fields
         'todoProject' => ['type' => 'integer'],
         // reCAPTCHA v3: the site key (its secret apart, encrypted like the passwords – META_RECAPTCHA_SECRET)
         'recaptchaSiteKey' => ['type' => 'string', 'max' => 100],
+        // Google Maps' API key – public in the site's pages anyway (restricted to its domains in Google Cloud)
+        'googleMapsKey' => ['type' => 'string', 'max' => 100],
         // Markdown – its lines kept (`multiline`)
         'notes' => ['type' => 'string', 'max' => 5000, 'multiline' => true],
     ];
