@@ -761,11 +761,23 @@ final class ProjectRepository
         // what has no translation for the site's language (plugin_meden 1.18.0 / MK Core) – only what has one to install
         // (TranslationPacks; not asked yet – kept); null: not reported
         $missing = is_array($report) && is_array($report['missingTranslations'] ?? null) ? $report['missingTranslations'] : null;
-        $locale = (string) ($missing['locale'] ?? '');
-        $project['missingTranslations'] = $missing !== null ? [
-            'locale' => $locale,
-            'items' => array_values(array_filter((array) ($missing['items'] ?? []), static fn (mixed $item): bool => is_array($item) && TranslationPacks::available($item, $locale) !== false)),
-        ] : null;
+        $installable = static fn (array $missing): array => [
+            'locale' => (string) ($missing['locale'] ?? ''),
+            'items' => array_values(array_filter((array) ($missing['items'] ?? []), static fn (mixed $item): bool => is_array($item) && TranslationPacks::available($item, (string) ($missing['locale'] ?? '')) !== false)),
+        ];
+        $project['missingTranslations'] = $missing !== null ? $installable($missing) : null;
+        // multisite: the network's sites – address, language, theme, what each misses (plugin_meden 1.20.0); null – one site
+        $project['sites'] = is_array($report) && is_array($report['sites'] ?? null) ? array_values(array_map(
+            static fn (array $site): array => [
+                'id' => (int) ($site['id'] ?? 0),
+                'url' => (string) ($site['url'] ?? ''),
+                'name' => (string) ($site['name'] ?? ''),
+                'locale' => (string) ($site['locale'] ?? ''),
+                'theme' => (string) ($site['theme'] ?? ''),
+                'missingTranslations' => $installable(is_array($site['missingTranslations'] ?? null) ? $site['missingTranslations'] : []),
+            ],
+            array_filter($report['sites'], 'is_array'),
+        )) : null;
         // where the site uses reCAPTCHA (CF7, Wordfence's login): the site key, the secret's SHA-256 – the dialog checks
         // them against the project's keys; null – the report doesn't look (plugin_meden before 1.15.0)
         $project['recaptcha'] = !is_array($report) || !is_array($report['recaptcha'] ?? null) ? null : array_values(array_map(

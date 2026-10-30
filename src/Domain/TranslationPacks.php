@@ -30,7 +30,13 @@ final class TranslationPacks
         foreach (get_posts(['post_type' => ContentTypes::PROJECT, 'post_status' => 'publish', 'numberposts' => -1, 'fields' => 'ids', 'meta_key' => ContentTypes::META_REPORT]) as $id) {
             $report = json_decode((string) get_post_meta($id, ContentTypes::META_REPORT, true), true);
 
-            foreach ((array) ($report['missingTranslations']['items'] ?? []) as $item) {
+            $items = array_merge((array) ($report['missingTranslations']['items'] ?? []), ...array_map(
+                static fn (mixed $site): array => is_array($site) ? (array) ($site['missingTranslations']['items'] ?? []) : [],
+                (array) ($report['sites'] ?? []),
+            ));
+
+            // the network's sites too (multisite)
+            foreach ($items as $item) {
                 $type = is_array($item) ? (string) ($item['type'] ?? '') : '';
                 $slug = is_array($item) ? (string) ($item['slug'] ?? '') : '';
 
