@@ -39,7 +39,10 @@ final class SecretsCommand
             WP_CLI::error('Najpierw ustaw ' . Secrets::ENV . ' (wp projects-secrets key).');
         }
 
-        $result = $this->projects->rekeySecrets();
+        // the projects' passwords and the alerts' secrets (the SMTP password, Slack's webhook)
+        $projects = $this->projects->rekeySecrets();
+        $alerts = \MKProjects\Domain\AlertSettings::rekey();
+        $result = ['moved' => $projects['moved'] + $alerts['moved'], 'unreadable' => $projects['unreadable'] + $alerts['unreadable']];
 
         if ($result['unreadable'] > 0) {
             WP_CLI::warning("Nie da się odczytać: {$result['unreadable']} – żaden klucz ich nie otwiera.");

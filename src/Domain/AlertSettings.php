@@ -140,4 +140,30 @@ final class AlertSettings
             ],
         ];
     }
+
+    /**
+     * The SMTP password and the webhook onto the list's own key (`wp projects-secrets rekey`) – those still under the
+     * old one (the AUTH salt).
+     *
+     * @return array{moved: int, unreadable: int}
+     */
+    public static function rekey(): array
+    {
+        $secrets = new Secrets();
+        $moved = $unreadable = 0;
+
+        foreach ([self::SMTP_PASSWORD, self::SLACK_WEBHOOK] as $option) {
+            $stored = (string) get_option($option, '');
+            $plain = $stored === '' ? null : $secrets->decrypt($stored);
+
+            if ($plain === null) {
+                $unreadable += $stored === '' ? 0 : 1;
+            } elseif ($secrets->legacy($stored)) {
+                update_option($option, $secrets->encrypt($plain), false);
+                $moved++;
+            }
+        }
+
+        return ['moved' => $moved, 'unreadable' => $unreadable];
+    }
 }
