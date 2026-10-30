@@ -470,7 +470,9 @@ final class ProjectRepository
             'id' => $post->ID,
             'token' => get_post_meta($post->ID, ContentTypes::META_TOKEN, true) ?: null,
             'url' => $domain !== '' ? 'https://' . $domain : null,
+            // only Basic Auth in front of the whole site – one in front of the panel alone isn't the list's business
             'auth' => ($user = (string) get_post_meta($post->ID, Fields::metaKey('authUser'), true)) !== ''
+                && get_post_meta($post->ID, Fields::metaKey('authScope'), true) !== 'panel'
                 ? [$user, (string) $this->password($post->ID, 'auth')]
                 : null,
             'staging' => $staging !== '' ? $staging : null,
