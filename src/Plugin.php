@@ -52,6 +52,8 @@ final class Plugin
         $alerts = new Alerts($projects);
         (new UpdateController(new SiteUpdater($projects, $alerts)))->register();
         (new AlertsController($alerts))->register();
+        // the app's errors in the browsers – kept for later (`wp projects-errors`)
+        (new \MKProjects\Rest\ClientErrorsController())->register();
 
         // `wp projects-report` on the list's site (MK Core) fetches every other site's report; the dialog – one of them
         $puller = new ReportPuller($projects, alerts: $alerts);
@@ -64,6 +66,7 @@ final class Plugin
 
         if (defined('WP_CLI') && WP_CLI) {
             \WP_CLI::add_command('projects-secrets', new SecretsCommand($projects));
+            \WP_CLI::add_command('projects-errors', new \MKProjects\Cli\ErrorsCommand());
         }
 
         add_filter('mk_core/dashboard/packages', [self::class, 'dashboardCard']);
