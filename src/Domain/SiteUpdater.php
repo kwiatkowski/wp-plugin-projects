@@ -59,6 +59,12 @@ final class SiteUpdater
             (new History())->event($id, 'update', ['text' => $scope === 'translations' ? 'Aktualizacja tłumaczeń uruchomiona z listy' : 'Aktualizacja uruchomiona z listy']);
         }
 
+        // asked how it goes while WordPress installs the plugins – the site is in maintenance (503) for that moment:
+        // still running, not an error
+        if ($method === 'GET' && $code === 503) {
+            return ['available' => true, 'state' => 'running'];
+        }
+
         return match (true) {
             $code === 200 && is_array($data) => $data,
             $code === 404 => new WP_Error('projects_update_unavailable', 'Strona nie ma aktualizacji z listy – zaktualizuj plugin_meden (1.14.0+) albo MK Core (2026.10.28+).', ['status' => 409]),
