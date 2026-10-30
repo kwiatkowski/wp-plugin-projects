@@ -35,6 +35,8 @@ final class ContentTypes
     public const META_REPORT = '_project_report';
     /** the site's TLS certificate as the list last saw it (SslChecker), JSON */
     public const META_SSL = '_project_ssl';
+    /** the site's other domains (all but the first) as the list last saw them: { host: { code, error?, checkedAt, ssl? } }, JSON */
+    public const META_DOMAIN_CHECKS = '_project_domain_checks';
 
     public function register(): void
     {

@@ -78,6 +78,11 @@ final class Alerts
             // the home page: sites in progress or suspended aren't watched
             if (!empty($project['domains']) && in_array($project['status'], ['online', 'offline'], true)) {
                 $this->watch($id, 'home', $project, $rules['down'], $rules['recovery'], $muted, $now, $alerts, $first);
+
+                // the site's other domains – as the home page
+                foreach (ProjectRepository::otherDomains($id) as $host) {
+                    $this->watch($id, $host, $project, $rules['down'], $rules['recovery'], $muted, $now, $alerts, $first);
+                }
             } else {
                 unset($now['home']);
             }
@@ -86,30 +91,40 @@ final class Alerts
                 $this->watch($id, 'staging', $project, $rules['staging'], $rules['staging'], $muted, $now, $alerts, $first);
             }
 
-            // the certificate: ending soon (by its end date) or not valid (by its error) – each said once
-            $ssl = (array) ($project['ssl'] ?? []);
-            $sslKey = null;
+            // the certificates – the home page's and the other domains': ending soon (by the end date) or not valid (by
+            // the error) – each said once
+            $certificates = ['ssl' => [$project['name'], self::homeUrl($project), (array) ($project['ssl'] ?? [])]];
 
-            if (!empty($ssl['error'])) {
-                $sslKey = 'bad:' . $ssl['error'];
-                $sslText = sprintf('certyfikat SSL nieprawidłowy – %s', $ssl['error']);
-            } elseif (!empty($ssl['validTo'])) {
-                $days = (int) floor((strtotime((string) $ssl['validTo']) - time()) / DAY_IN_SECONDS);
-
-                if ($days <= $rules['ssl']['days']) {
-                    $sslKey = 'soon:' . $ssl['validTo'];
-                    $sslText = sprintf('certyfikat SSL wygasa za %d dni (%s)', max($days, 0), wp_date('Y.m.d', (int) strtotime((string) $ssl['validTo'])));
-                }
+            foreach ((array) ($project['domainChecks'] ?? []) as $check) {
+                $certificates['ssl:' . $check['domain']] = [$check['domain'], 'https://' . $check['domain'], (array) ($check['ssl'] ?? [])];
             }
 
-            if ($sslKey === null) {
-                unset($now['ssl']);
-            } elseif (($now['ssl'] ?? null) !== $sslKey && ($first || ($rules['ssl']['enabled'] && !$muted))) {
-                if (!$first) {
-                    $alerts[] = ['rule' => 'ssl', 'id' => $id, 'icon' => str_starts_with($sslKey, 'soon:') ? '🟠' : '🔴', 'tone' => str_starts_with($sslKey, 'soon:') ? 'warn' : 'danger', 'what' => $project['name'], 'url' => $project['url'] ?? null, 'detail' => '– ' . ($sslText ?? '')];
+            foreach ($certificates as $key => [$what, $url, $ssl]) {
+                $sslKey = null;
+                $sslText = '';
+
+                if (!empty($ssl['error'])) {
+                    $sslKey = 'bad:' . $ssl['error'];
+                    $sslText = sprintf('certyfikat SSL nieprawidłowy – %s', $ssl['error']);
+                } elseif (!empty($ssl['validTo'])) {
+                    $days = (int) floor((strtotime((string) $ssl['validTo']) - time()) / DAY_IN_SECONDS);
+
+                    if ($days <= $rules['ssl']['days']) {
+                        $sslKey = 'soon:' . $ssl['validTo'];
+                        $sslText = sprintf('certyfikat SSL wygasa za %d dni (%s)', max($days, 0), wp_date('Y.m.d', (int) strtotime((string) $ssl['validTo'])));
+                    }
                 }
 
-                $now['ssl'] = $sslKey;
+                if ($sslKey === null) {
+                    unset($now[$key]);
+                } elseif (($now[$key] ?? null) !== $sslKey && ($first || ($rules['ssl']['enabled'] && !$muted))) {
+                    if (!$first) {
+                        $soon = str_starts_with($sslKey, 'soon:');
+                        $alerts[] = ['rule' => 'ssl', 'id' => $id, 'icon' => $soon ? '🟠' : '🔴', 'tone' => $soon ? 'warn' : 'danger', 'what' => $what, 'url' => $url, 'detail' => '– ' . $sslText];
+                    }
+
+                    $now[$key] = $sslKey;
+                }
             }
 
             // the report: a site with a token that went quiet
@@ -120,7 +135,7 @@ final class Alerts
                 unset($now['report']);
             } elseif (($now['report'] ?? null) !== $reportedAt && ($first || ($rules['report']['enabled'] && !$muted))) {
                 if (!$first) {
-                    $alerts[] = ['rule' => 'report', 'id' => $id, 'icon' => '🟠', 'tone' => 'warn', 'what' => $project['name'], 'url' => $project['url'] ?? null, 'detail' => sprintf('– brak raportu od %s', wp_date('Y.m.d H:i', $reportedAt))];
+                    $alerts[] = ['rule' => 'report', 'id' => $id, 'icon' => '🟠', 'tone' => 'warn', 'what' => $project['name'], 'url' => self::homeUrl($project), 'detail' => sprintf('– brak raportu od %s', wp_date('Y.m.d H:i', $reportedAt))];
                 }
 
                 $now['report'] = $reportedAt;
@@ -163,8 +178,17 @@ final class Alerts
     private function watch(int $id, string $target, array $project, array $down, array $back, bool $muted, array &$now, array &$alerts, bool $first = false): void
     {
         $failed = $this->history->failedInRow($id, $target, max((int) ($down['after'] ?? 2), 2) + 1);
-        $what = $target === 'home' ? $project['name'] : $project['name'] . ' (staging)';
-        $rule = $target === 'home' ? 'down' : 'staging';
+        $what = match ($target) {
+            'home' => $project['name'],
+            'staging' => $project['name'] . ' (staging)',
+            default => $target,
+        };
+        $rule = $target === 'staging' ? 'staging' : 'down';
+        $url = match ($target) {
+            'home' => self::homeUrl($project),
+            'staging' => $project['stagingUrl'] ?? null,
+            default => "https://$target",
+        };
 
         // already down at the first run – noted as said, so its coming back is
         if ($first && $failed >= (int) ($down['after'] ?? 2)) {
@@ -172,12 +196,12 @@ final class Alerts
         } elseif ($failed >= (int) ($down['after'] ?? 2) && empty($now[$target]) && $down['enabled'] && !$muted) {
             $now[$target] = time() - ($failed - 1) * 5 * MINUTE_IN_SECONDS;
             $check = $this->history->lastCheck($id, $target);
-            $alerts[] = ['rule' => $rule, 'id' => $id, 'icon' => '🔴', 'tone' => 'danger', 'what' => $what, 'url' => $project['url'] ?? null, 'detail' => sprintf('nie działa%s', $check ? ' – ' . self::reason($check['code'], $check['error']) : '')];
+            $alerts[] = ['rule' => $rule, 'id' => $id, 'icon' => '🔴', 'tone' => 'danger', 'what' => $what, 'url' => $url, 'detail' => sprintf('nie działa%s', $check ? ' – ' . self::reason($check['code'], $check['error']) : '')];
         } elseif ($failed === 0 && !empty($now[$target]) && !$first) {
             $minutes = (int) round((time() - (int) $now[$target]) / 60);
 
             if ($back['enabled'] && !$muted) {
-                $alerts[] = ['rule' => $target === 'home' ? 'recovery' : 'staging', 'id' => $id, 'icon' => '🟢', 'tone' => 'ok', 'what' => $what, 'url' => $project['url'] ?? null, 'detail' => sprintf('znów działa – niedostępna ok. %d min', max($minutes, 1))];
+                $alerts[] = ['rule' => $target === 'staging' ? 'staging' : 'recovery', 'id' => $id, 'icon' => '🟢', 'tone' => 'ok', 'what' => $what, 'url' => $url, 'detail' => sprintf('znów działa – niedostępna ok. %d min', max($minutes, 1))];
             }
 
             unset($now[$target]);
@@ -268,6 +292,12 @@ final class Alerts
         ]));
     }
 
+    /** @param array<string, mixed> $project */
+    private static function homeUrl(array $project): ?string
+    {
+        return !empty($project['domains'][0]) ? 'https://' . $project['domains'][0] : null;
+    }
+
     private static function listUrl(): string
     {
         return \MKProjects\App\AppShell::url();
@@ -311,11 +341,11 @@ final class Alerts
             }
 
             $id = (int) $project['id'];
-            $item = static fn (string $tone, string $detail): array => ['tone' => $tone, 'name' => (string) $project['name'], 'url' => $project['url'] ?? null, 'detail' => $detail];
+            $item = static fn (string $tone, string $detail, ?string $host = null): array => ['tone' => $tone, 'name' => $host ?? (string) $project['name'], 'url' => $host !== null ? "https://$host" : self::homeUrl($project), 'detail' => $detail];
 
-            if (!empty($outages[$id])) {
-                $minutes = array_sum(array_column($outages[$id], 'minutes'));
-                $sections['down'][] = $item('danger', sprintf('%d× niedostępna, razem %d min', count($outages[$id]), $minutes));
+            // the home page, then the site's other domains
+            foreach ($outages[$id] ?? [] as $target => $runs) {
+                $sections['down'][] = $item('danger', sprintf('%d× niedostępna, razem %d min', count($runs), array_sum(array_column($runs, 'minutes'))), $target === 'home' ? null : $target);
             }
 
             $waiting = [];
@@ -348,6 +378,16 @@ final class Alerts
                 $sections['ssl'][] = $item('danger', sprintf('certyfikat nieprawidłowy (%s)', $project['ssl']['error']));
             } elseif ($validTo && strtotime((string) $validTo) - time() < 30 * DAY_IN_SECONDS) {
                 $sections['ssl'][] = $item('warn', sprintf('ważny do %s', wp_date('j.m.Y', (int) strtotime((string) $validTo))));
+            }
+
+            foreach ((array) ($project['domainChecks'] ?? []) as $check) {
+                $other = (array) ($check['ssl'] ?? []);
+
+                if (!empty($other['error'])) {
+                    $sections['ssl'][] = $item('danger', sprintf('certyfikat nieprawidłowy (%s)', $other['error']), $check['domain']);
+                } elseif (!empty($other['validTo']) && strtotime((string) $other['validTo']) - time() < 30 * DAY_IN_SECONDS) {
+                    $sections['ssl'][] = $item('warn', sprintf('ważny do %s', wp_date('j.m.Y', (int) strtotime((string) $other['validTo']))), $check['domain']);
+                }
             }
 
             if (!empty($project['token']) && !empty($project['reportedAt']) && time() - (int) strtotime((string) $project['reportedAt']) > DAY_IN_SECONDS) {

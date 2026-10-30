@@ -136,6 +136,10 @@ final class ReportPuller
             // the certificate of every site with a domain – a token isn't needed for it
             if ($reports && $target['url'] !== null) {
                 $this->projects->applySsl($target['id'], $this->ssl->check((string) parse_url($target['url'], PHP_URL_HOST)));
+
+                foreach ($target['domains'] as $host) {
+                    $this->projects->applyDomain($target['id'], $host, ['ssl' => $this->ssl->check($host)]);
+                }
             }
 
             $results[$target['id']] = match (true) {
@@ -152,6 +156,7 @@ final class ReportPuller
         $requests = [];
         $stagings = [];
         $homes = [];
+        $domains = [];
 
         // every staging – with its own Basic Auth login – answers or not; a token isn't needed for it
         foreach ($all as $target) {
@@ -169,6 +174,12 @@ final class ReportPuller
                 $homes[] = $target['id'];
                 $auth = $target['auth'] ? ['Authorization' => 'Basic ' . base64_encode(implode(':', $target['auth']))] : [];
                 $requests["home-{$target['id']}"] = ['url' => $target['url'] . '/', 'headers' => $auth];
+
+                // the site's other domains – the same login
+                foreach ($target['domains'] as $index => $host) {
+                    $domains["domain-{$target['id']}-$index"] = [$target['id'], $host];
+                    $requests["domain-{$target['id']}-$index"] = ['url' => "https://$host/", 'headers' => $auth];
+                }
             }
         }
 
@@ -200,6 +211,13 @@ final class ReportPuller
             $code = $staging instanceof Response ? (int) $staging->status_code : 0;
             $this->projects->applyStaging($id, $code, self::failure($staging));
             $this->history->check($id, 'staging', $code, $times["staging-$id"] ?? null, self::failure($staging));
+        }
+
+        foreach ($domains as $key => [$id, $host]) {
+            $response = $responses[$key] ?? null;
+            $code = $response instanceof Response ? (int) $response->status_code : 0;
+            $this->history->check($id, $host, $code, $times[$key] ?? null, self::failure($response));
+            $this->projects->applyDomain($id, $host, ['code' => $code, 'error' => self::failure($response)]);
         }
 
         foreach ($homes as $id) {

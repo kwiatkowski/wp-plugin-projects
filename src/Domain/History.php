@@ -7,7 +7,7 @@ namespace MKProjects\Domain;
 /**
  * What happened to the projects over time – two tables of their own (a check every 5 minutes is too much for post meta):
  *
- *  - checks: every look at a home page / staging – its HTTP code (0 – no answer, `error` why), the time it took;
+ *  - checks: every look at a home page / staging / another domain of the site (target: its host) – its HTTP code (0 – no answer, `error` why), the time it took;
  *    the availability and the response times come from it
  *  - events: what changed – the status (down, back), what a report brought (versions, plugins, users), updates run
  *    from the list, alerts sent
@@ -16,7 +16,7 @@ namespace MKProjects\Domain;
  */
 final class History
 {
-    private const VERSION = '1';
+    private const VERSION = '2';
     private const VERSION_OPTION = 'wp_plugin_projects_db_version';
     public const KEEP_DAYS = 90;
 
@@ -56,7 +56,7 @@ final class History
         dbDelta("CREATE TABLE $checks (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             project_id bigint(20) unsigned NOT NULL,
-            target varchar(8) NOT NULL,
+            target varchar(100) NOT NULL,
             checked_at datetime NOT NULL,
             code smallint(5) unsigned NOT NULL,
             ms int(10) unsigned DEFAULT NULL,
@@ -80,7 +80,7 @@ final class History
         update_option(self::VERSION_OPTION, self::VERSION, true);
     }
 
-    /** One look at a home page (target "home") or a staging ("staging"). */
+    /** One look at a home page (target "home"), a staging ("staging") or another domain of the site (its host). */
     public function check(int $projectId, string $target, int $code, ?int $ms, ?string $error): void
     {
         global $wpdb;
@@ -188,18 +188,20 @@ final class History
     }
 
     /**
-     * One project's history for its dialog: per target the availability over 24 hours, 7 and 30 days, the mean
+     * One project's history for its dialog: per target (the home page, the staging, the site's other domains – by
+     * their host) the availability over 24 hours, 7 and 30 days, the mean
      * response time, the last day's checks (for a chart) and the outages of 30 days; and the events, newest first.
      *
      * @return array<string, mixed>
      */
-    public function project(int $projectId, bool $home = true): array
+    public function project(int $projectId, bool $home = true, array $domains = []): array
     {
         $targets = [];
+        $all = ['home' => self::UP_HOME, 'staging' => self::UP_STAGING] + array_fill_keys($domains, self::UP_HOME);
 
-        foreach (['home' => self::UP_HOME, 'staging' => self::UP_STAGING] as $target => $up) {
-            // a site in progress or suspended – its home page isn't watched, its old checks aren't shown either
-            if ($target === 'home' && !$home) {
+        foreach ($all as $target => $up) {
+            // a site in progress or suspended – its home pages aren't watched, their old checks aren't shown either
+            if ($target !== 'staging' && !$home) {
                 continue;
             }
 
@@ -249,26 +251,30 @@ final class History
     }
 
     /**
-     * The outages of every project's home page since a time – the weekly summary.
+     * The outages of every project's home page – and its other domains – since a time, per target: the weekly summary.
      *
-     * @return array<int, array<int, array{from: string, to: string|null, minutes: int, code: int, error: string|null}>>
+     * @return array<int, array<string, array<int, array{from: string, to: string|null, minutes: int, code: int, error: string|null}>>>
      */
     public function outagesSince(int $since): array
     {
         global $wpdb;
 
-        $ids = array_map('intval', (array) $wpdb->get_col($wpdb->prepare(
-            'SELECT DISTINCT project_id FROM ' . self::checksTable() . ' WHERE target = %s AND checked_at >= %s AND NOT ' . self::UP_HOME,
-            'home',
+        $rows = (array) $wpdb->get_results($wpdb->prepare(
+            'SELECT DISTINCT project_id, target FROM ' . self::checksTable() . ' WHERE target <> %s AND checked_at >= %s AND NOT ' . self::UP_HOME,
+            'staging',
             gmdate('Y-m-d H:i:s', $since),
-        )));
+        ), ARRAY_A);
         $outages = [];
 
-        foreach ($ids as $id) {
-            $outages[$id] = $this->outages($this->checks($id, 'home', self::UP_HOME, time() - $since));
+        foreach ($rows as $row) {
+            $found = $this->outages($this->checks((int) $row['project_id'], (string) $row['target'], self::UP_HOME, time() - $since));
+
+            if ($found) {
+                $outages[(int) $row['project_id']][(string) $row['target']] = $found;
+            }
         }
 
-        return array_filter($outages);
+        return $outages;
     }
 
     /** Drops what is older than KEEP_DAYS – once a day is enough. */

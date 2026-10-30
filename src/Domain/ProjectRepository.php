@@ -42,8 +42,19 @@ final class ProjectRepository
     public function history(int $id): array|WP_Error
     {
         return $this->post($id)
-            ? $this->history->project($id, !in_array(get_post_meta($id, Fields::metaKey('status'), true), self::UNWATCHED, true))
+            ? $this->history->project($id, !in_array(get_post_meta($id, Fields::metaKey('status'), true), self::UNWATCHED, true), self::otherDomains($id))
             : $this->notFound();
+    }
+
+    /** The project's domains but the first (the home page) – the site's other addresses, bare hosts. @return string[] */
+    public static function otherDomains(int $id): array
+    {
+        $hosts = array_map(
+            static fn (mixed $domain): string => strtolower(trim((string) preg_replace('#^https?://#i', '', (string) $domain), '/')),
+            (array) get_post_meta($id, Fields::metaKey('domains'), true),
+        );
+
+        return array_values(array_unique(array_filter(array_slice($hosts, 1))));
     }
 
     /**
@@ -407,6 +418,28 @@ final class ProjectRepository
         update_post_meta($id, ContentTypes::META_STAGING, wp_slash((string) wp_json_encode($staging)));
     }
 
+    /**
+     * What one of the site's other domains answered (0 – nothing, and why), or its certificate – kept by host; the
+     * domains no longer in the project drop out.
+     *
+     * @param array<string, mixed> $values code and error, or ssl
+     */
+    public function applyDomain(int $id, string $host, array $values): void
+    {
+        $stored = json_decode((string) get_post_meta($id, ContentTypes::META_DOMAIN_CHECKS, true), true);
+        $checks = array_intersect_key(is_array($stored) ? $stored : [], array_flip(self::otherDomains($id)));
+        $entry = $checks[$host] ?? [];
+
+        // a new answer: the old one's reason goes
+        if (array_key_exists('code', $values)) {
+            unset($entry['error']);
+            $values['checkedAt'] = gmdate(DATE_ATOM);
+        }
+
+        $checks[$host] = array_merge($entry, array_filter($values, static fn (mixed $value): bool => $value !== null));
+        update_post_meta($id, ContentTypes::META_DOMAIN_CHECKS, wp_slash((string) wp_json_encode($checks, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)));
+    }
+
     /** Keeps what SslChecker found for the project. */
     public function applySsl(int $id, array $ssl): void
     {
@@ -441,6 +474,8 @@ final class ProjectRepository
                 ? [$user, (string) $this->password($post->ID, 'auth')]
                 : null,
             'staging' => $staging !== '' ? $staging : null,
+            // the site's other domains – checked as the home page is (multisite, a second language's domain)
+            'domains' => self::otherDomains($post->ID),
             // a site in progress or suspended: its home page isn't checked (no availability, no response times)
             'watched' => !in_array(get_post_meta($post->ID, Fields::metaKey('status'), true), self::UNWATCHED, true),
             'stagingAuth' => ($stagingUser = (string) get_post_meta($post->ID, Fields::metaKey('stagingAuthUser'), true)) !== ''
@@ -763,6 +798,12 @@ final class ProjectRepository
         $project['hasRecaptchaSecret'] = get_post_meta($post->ID, ContentTypes::META_RECAPTCHA_SECRET, true) !== '';
         $staging = json_decode((string) get_post_meta($post->ID, ContentTypes::META_STAGING, true), true);
         $project['staging'] = is_array($staging) ? $staging : null;
+        // the site's other domains as the list last saw them: what they answered, their certificates
+        $checks = json_decode((string) get_post_meta($post->ID, ContentTypes::META_DOMAIN_CHECKS, true), true);
+        $project['domainChecks'] = array_values(array_filter(array_map(
+            static fn (string $host): ?array => is_array($checks[$host] ?? null) ? ['domain' => $host] + $checks[$host] : null,
+            self::otherDomains($post->ID),
+        )));
         // the home page over 30 days: availability in %, the mean response time of the last day
         // (none for a site in progress or suspended – it isn't checked)
         $this->summaries ??= $this->history->summaries();
