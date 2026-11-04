@@ -44,8 +44,9 @@ final class Columns
         'acf' => ['acf'],
         'miModal' => ['miModal'],
         'todo' => ['todo'],
-        // the dot and its popup: when, what sent it, what waits, the certificate; `token` only as "there is one"
-        'report' => ['reportedAt', 'reporter', 'updates', 'translationUpdates', 'ssl', 'token', 'vulnerabilities', 'missingTranslations', 'sites'],
+        // the dot and its popup: when, what sent it, what waits, what lies unused, the certificate; `token` only as "there
+        // is one"
+        'report' => ['reportedAt', 'reporter', 'updates', 'translationUpdates', 'ssl', 'token', 'vulnerabilities', 'missingTranslations', 'sites', 'inactivePlugins', 'inactiveThemes', 'themeUpdates'],
     ];
 
     /** a viewer sees the theme's tooltip too (its version and author) */

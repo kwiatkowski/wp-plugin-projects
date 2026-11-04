@@ -802,6 +802,18 @@ final class ProjectRepository
             ),
         ));
 
+        // what lies unused: the plugins switched off (not the must-use ones), the themes no site uses nor builds on; and
+        // the themes waiting for an update – null: a reporter older than the themes list (plugin_meden 1.21.0)
+        $installed = is_array($report) && is_array($report['plugins'] ?? null) ? $report['plugins'] : [];
+        $project['inactivePlugins'] = array_values(array_map(
+            static fn (array $plugin): array => ['name' => (string) ($plugin['name'] ?? ''), 'version' => (string) ($plugin['version'] ?? '')],
+            array_filter($installed, static fn (mixed $plugin): bool => is_array($plugin) && empty($plugin['active']) && empty($plugin['mu'])),
+        ));
+        $themes = is_array($report) && is_array($report['themes'] ?? null) ? array_filter($report['themes'], 'is_array') : null;
+        $theme = static fn (array $item): array => ['name' => (string) ($item['name'] ?? ''), 'version' => (string) ($item['version'] ?? '')] + (empty($item['update']) ? [] : ['update' => (string) $item['update']]);
+        $project['inactiveThemes'] = $themes === null ? null : array_values(array_map($theme, array_filter($themes, static fn (array $item): bool => empty($item['active']) && empty($item['parent']))));
+        $project['themeUpdates'] = $themes === null ? null : array_values(array_map($theme, array_filter($themes, static fn (array $item): bool => !empty($item['update']))));
+
         // the TLS certificate as the list saw it at its last pull: until when, by whom, whether it is fine
         $ssl = json_decode((string) get_post_meta($post->ID, ContentTypes::META_SSL, true), true);
         $project['ssl'] = is_array($ssl) ? $ssl : null;
