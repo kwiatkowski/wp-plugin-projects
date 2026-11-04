@@ -13,16 +13,21 @@ use WpOrg\Requests\Response;
  * once a language is translated far enough). A missing translation with no pack for the site's language can't be
  * installed by any update, so the list leaves it out.
  *
- * Each slug's languages are kept CACHE seconds; the pull asks for the ones not known yet.
+ * Each slug's languages are asked again once they are FRESH seconds old, but kept KEEP seconds: until the new answer
+ * comes the old one stands. Kept only as long as they are fresh, they would all run out at once (they were asked
+ * together) and until the next pull every missing translation would show – the ones no update can bring too.
  */
 final class TranslationPacks
 {
     private const API = 'https://api.wordpress.org/translations';
-    private const CACHE = 12 * HOUR_IN_SECONDS;
+    /** asked again after this long */
+    private const FRESH = 12 * HOUR_IN_SECONDS;
+    /** the answer stands this long – till the pulls after FRESH have asked again, with room for a few failing */
+    private const KEEP = 2 * DAY_IN_SECONDS;
     private const TRANSIENT = 'mk_projects_l10n_';
     private const AT_ONCE = 8;
 
-    /** asks for the packs of everything the reports miss a translation of – what isn't known yet */
+    /** asks for the packs of everything the reports miss a translation of – what isn't known yet or is no longer fresh */
     public function warm(): void
     {
         $ask = [];
@@ -40,7 +45,7 @@ final class TranslationPacks
                 $type = is_array($item) ? (string) ($item['type'] ?? '') : '';
                 $slug = is_array($item) ? (string) ($item['slug'] ?? '') : '';
 
-                if (in_array($type, ['plugin', 'theme'], true) && $slug !== '' && self::languages($type, $slug) === null) {
+                if (in_array($type, ['plugin', 'theme'], true) && $slug !== '' && !self::fresh($type, $slug)) {
                     $ask["$type/$slug"] = ['url' => self::API . "/{$type}s/1.0/?slug=" . rawurlencode($slug)];
                 }
             }
@@ -62,7 +67,7 @@ final class TranslationPacks
                     continue;
                 }
 
-                set_transient(self::TRANSIENT . md5((string) $key), array_values(array_unique(array_column($body['translations'], 'language'))), self::CACHE);
+                set_transient(self::TRANSIENT . md5((string) $key), ['languages' => array_values(array_unique(array_column($body['translations'], 'language'))), 'at' => time()], self::KEEP);
             }
         }
     }
@@ -90,6 +95,19 @@ final class TranslationPacks
     {
         $cached = get_transient(self::TRANSIENT . md5("$type/$slug"));
 
-        return is_array($cached) ? $cached : null;
+        // the answer with the time it came; a bare list – kept before that (it counts as not fresh)
+        return match (true) {
+            is_array($cached) && is_array($cached['languages'] ?? null) => $cached['languages'],
+            is_array($cached) => $cached,
+            default => null,
+        };
+    }
+
+    /** whether the slug's answer came less than FRESH ago */
+    private static function fresh(string $type, string $slug): bool
+    {
+        $cached = get_transient(self::TRANSIENT . md5("$type/$slug"));
+
+        return is_array($cached) && time() - (int) ($cached['at'] ?? 0) < self::FRESH;
     }
 }
