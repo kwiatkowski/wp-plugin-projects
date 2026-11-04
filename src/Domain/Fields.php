@@ -14,7 +14,7 @@ namespace MKProjects\Domain;
  */
 final class Fields
 {
-    public const STATUSES = ['online', 'dev', 'suspended', 'offline'];
+    public const STATUSES = ['online', 'dev', 'suspended', 'offline', 'unmonitored'];
 
     /** @var array<string, array{type: string, format?: string, enum?: string[], reported?: bool, max?: int, multiline?: bool}> */
     public const ALL = [

@@ -29,7 +29,8 @@ final class ProjectRepository
     }
 
     /** statuses whose home page the list doesn't check – set by hand, the site isn't live */
-    public const UNWATCHED = ['dev', 'suspended'];
+    /** in progress, suspended, or working but not watched on purpose – the report still comes, the home page isn't checked */
+    public const UNWATCHED = ['dev', 'suspended', 'unmonitored'];
 
     /** the home pages' availability and response times – read once per request, for every project */
     private ?array $summaries = null;
@@ -388,10 +389,10 @@ final class ProjectRepository
         return $change;
     }
 
-    /** Online when the home page answers without an error (2xx, 3xx – or 401: it works, behind a password), else offline; null – a site in progress or suspended keeps its status (set by hand). */
+    /** Online when the home page answers without an error (2xx, 3xx – or 401: it works, behind a password), else offline; null – a site in progress, suspended or not watched keeps its status (set by hand). */
     private function statusFor(?string $current, int $code): ?string
     {
-        if (in_array($current, ['dev', 'suspended'], true)) {
+        if (in_array($current, self::UNWATCHED, true)) {
             return null;
         }
 
