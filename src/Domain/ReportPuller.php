@@ -17,7 +17,7 @@ use WpOrg\Requests\Response;
  * `wp projects-report` on the list's site runs it (filter `mk_core/report/pull`), so the cron there keeps all of them
  * fresh. The home page's code sets online / offline even when the report doesn't come (a site that breaks entirely).
  *
- * The cron (every 5 minutes) pulls everything – the reports, the certificates – once an hour (fullDue()); in between
+ * The cron (every 5 minutes) pulls everything – the reports, the certificates – every 15 minutes (fullDue()); in between
  * only check() – the home pages and the stagings: a site that goes down shows up within minutes, and the sites don't
  * build a report 288 times a day.
  */
@@ -26,9 +26,10 @@ final class ReportPuller
     public const PATH = '/wp-json/projects-report/v1/report';
 
     /** a full pull from the cron this often – a status check in between */
-    private const FULL_EVERY = HOUR_IN_SECONDS;
-    /** a cron run a bit early still counts – every 5 minutes, it would otherwise miss the hour by seconds */
-    private const SLACK = 5 * MINUTE_IN_SECONDS;
+    private const FULL_EVERY = 15 * MINUTE_IN_SECONDS;
+    /** a cron run a bit early still counts – every 5 minutes, it would otherwise miss the mark by seconds; a minute
+     *  stays well short of the run before */
+    private const SLACK = MINUTE_IN_SECONDS;
     private const LAST_FULL = 'wp_plugin_projects_last_full_pull';
     /** a home page or staging that didn't answer (or answered 5xx) is asked once more after this many seconds – a blip
      *  of the network doesn't take a site down */
@@ -80,7 +81,7 @@ final class ReportPuller
         return $rows;
     }
 
-    /** whether the cron's next run should pull everything – an hour since the last full pull */
+    /** whether the cron's next run should pull everything – 15 minutes since the last full pull */
     public function fullDue(): bool
     {
         return time() - (int) get_option(self::LAST_FULL, 0) >= self::FULL_EVERY - self::SLACK;
