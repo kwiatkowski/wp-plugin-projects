@@ -826,6 +826,8 @@ final class ProjectRepository
         $watched = !in_array($project['status'], self::UNWATCHED, true);
         $project['uptime'] = $watched ? $this->summaries[$post->ID]['uptime'] ?? null : null;
         $project['responseMs'] = $watched ? $this->summaries[$post->ID]['ms'] ?? null : null;
+        // a site that is down: what its home page answers now and since when – the status says why
+        $project['down'] = $watched && $project['status'] === 'offline' ? $this->history->outage($post->ID) : null;
         // the plugins' known vulnerabilities (VulnerabilityScanner) – null: not scanned yet
         $project['vulnerabilities'] = VulnerabilityScanner::of($post->ID)['items'] ?? null;
         // the alerts muted until (Alerts) – null: not muted

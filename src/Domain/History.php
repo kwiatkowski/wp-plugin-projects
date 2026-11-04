@@ -158,6 +158,37 @@ final class History
     }
 
     /**
+     * The target's outage still going on: what its last check answered (0 – nothing, and why: ReportPuller::failure())
+     * and since when it fails – the first failed check after the last good one. Null when the last check passed.
+     *
+     * @return array{code: int, error: string|null, since: string}|null
+     */
+    public function outage(int $projectId, string $target = 'home'): ?array
+    {
+        global $wpdb;
+
+        $last = $this->lastCheck($projectId, $target);
+        $up = $target === 'staging' ? self::UP_STAGING : self::UP_HOME;
+        $passed = $last !== null && ($target === 'staging' ? $last['code'] === 200 : ($last['code'] >= 200 && $last['code'] < 400) || $last['code'] === 401);
+
+        if ($last === null || $passed) {
+            return null;
+        }
+
+        $table = self::checksTable();
+        $since = (string) $wpdb->get_var($wpdb->prepare(
+            "SELECT MIN(checked_at) FROM $table WHERE project_id = %d AND target = %s AND checked_at > COALESCE(
+                (SELECT MAX(checked_at) FROM $table WHERE project_id = %d AND target = %s AND $up), '1970-01-01')",
+            $projectId,
+            $target,
+            $projectId,
+            $target,
+        ));
+
+        return $last + ['since' => gmdate(DATE_ATOM, (int) strtotime($since . ' UTC'))];
+    }
+
+    /**
      * Every project's home page over the last 30 days, for the list: availability in % (null – never checked) and the
      * mean response time of the last 24 hours, in ms.
      *

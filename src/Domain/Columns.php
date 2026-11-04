@@ -25,8 +25,9 @@ final class Columns
     /** the fields each column shows – besides `domains` (the name links to the site) */
     private const FIELDS = [
         'name' => [],
-        // the home page's status; the site's other domains – what they answered, their certificates
-        'status' => ['status', 'domainChecks'],
+        // the home page's status (offline – why, since when); the site's other domains – what they answered, their
+        // certificates
+        'status' => ['status', 'down', 'domainChecks'],
         // the home page over 30 days (History)
         'uptime' => ['uptime', 'responseMs'],
         'server' => ['server', 'serverUrl', 'serverAccount'],
