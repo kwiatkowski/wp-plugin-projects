@@ -763,6 +763,8 @@ final class ProjectRepository
         $project['phpVersion'] = is_array($report) && is_string($report['phpVersion'] ?? null) ? $report['phpVersion'] : null;
         $project['phpSapi'] = is_array($report) && is_string($report['phpSapi'] ?? null) ? $report['phpSapi'] : null;
         $project['phpIni'] = is_array($report) && is_array($report['phpIni'] ?? null) ? array_map('strval', $report['phpIni']) : null;
+        // the project's folder on the server (plugin_meden 1.22.0 / MK Core) – null: not reported
+        $project['path'] = is_array($report) && is_string($report['path'] ?? null) && $report['path'] !== '' ? $report['path'] : null;
         // what has no translation for the site's language (plugin_meden 1.18.0 / MK Core) – only what has one to install
         // (TranslationPacks; not asked yet – kept); null: not reported
         $missing = is_array($report) && is_array($report['missingTranslations'] ?? null) ? $report['missingTranslations'] : null;
