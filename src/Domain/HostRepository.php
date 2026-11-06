@@ -23,6 +23,8 @@ final class HostRepository
         'serverAccount' => ['max' => 100],
         // until when it is paid – YYYY-MM-DD; the list warns 30 days before
         'paidUntil' => ['format' => 'date'],
+        // what the renewal costs – as typed, e.g. "299 zł brutto / rok"
+        'renewalPrice' => ['max' => 50],
         'sshHost' => ['max' => 200],
         'sshPort' => ['type' => 'integer'],
         'sshUser' => ['max' => 100],
