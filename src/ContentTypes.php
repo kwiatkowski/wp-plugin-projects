@@ -19,6 +19,8 @@ final class ContentTypes
 {
     public const PROJECT = 'mk_project';
     public const CATEGORY = 'mk_project_category';
+    /** the hosting accounts – one holds several projects (Domain\HostRepository) */
+    public const HOST = 'mk_project_host';
 
     public const META_POSITION = '_project_position';
 
@@ -29,6 +31,8 @@ final class ContentTypes
     public const META_STAGING_AUTH_PASSWORD = '_project_staging_auth_password';
     /** reCAPTCHA v3's secret key – encrypted like the passwords */
     public const META_RECAPTCHA_SECRET = '_project_recaptcha_secret';
+    /** the database's password – typed by the owner, encrypted like the passwords */
+    public const META_DB_PASSWORD = '_project_db_password';
     /** what the staging answered at the list's last pull: { code, checkedAt, error? }, JSON */
     public const META_STAGING = '_project_staging';
     public const META_REPORTED_AT = '_project_reported_at';
@@ -84,6 +88,25 @@ final class ContentTypes
             'show_ui' => true,
             'show_in_menu' => true,
             'show_admin_column' => false,
+            'show_in_rest' => false,
+            'hierarchical' => false,
+            'capabilities' => [
+                'manage_terms' => $capability,
+                'edit_terms' => $capability,
+                'delete_terms' => $capability,
+                'assign_terms' => $capability,
+            ],
+            'rewrite' => false,
+            'query_var' => false,
+        ]);
+
+        register_taxonomy(self::HOST, [self::PROJECT], [
+            'labels' => [
+                'name' => __('Konta hostingowe', 'wp-plugin-projects'),
+                'singular_name' => __('Konto hostingowe', 'wp-plugin-projects'),
+            ],
+            'public' => false,
+            'show_ui' => false,
             'show_in_rest' => false,
             'hierarchical' => false,
             'capabilities' => [

@@ -22,6 +22,8 @@ final class Fields
         // the site's addresses, without https:// – one project can have several (e.g. language versions)
         'domains' => ['type' => 'array', 'max' => 20],
         'status' => ['type' => 'string', 'enum' => self::STATUSES],
+        // the hosting account (HostRepository) – its hosting, panel and account name stand for the three below
+        'hostId' => ['type' => 'integer'],
         'server' => ['type' => 'string', 'max' => 100],
         'serverUrl' => ['type' => 'string', 'format' => 'uri'],
         'serverAccount' => ['type' => 'string', 'max' => 100],
@@ -57,6 +59,10 @@ final class Fields
         'recaptchaSiteKey' => ['type' => 'string', 'max' => 100],
         // Google Maps' API key – public in the site's pages anyway (restricted to its domains in Google Cloud)
         'googleMapsKey' => ['type' => 'string', 'max' => 100],
+        // the database, typed by the owner (its password apart, encrypted – META_DB_PASSWORD)
+        'dbHost' => ['type' => 'string', 'max' => 200],
+        'dbName' => ['type' => 'string', 'max' => 100],
+        'dbUser' => ['type' => 'string', 'max' => 100],
         // Markdown – its lines kept (`multiline`)
         'notes' => ['type' => 'string', 'max' => 5000, 'multiline' => true],
     ];

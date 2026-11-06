@@ -25,6 +25,7 @@ final class ProjectRepository
         private readonly TodoBridge $todo,
         private readonly Secrets $secrets = new Secrets(),
         private readonly History $history = new History(),
+        private readonly HostRepository $hosts = new HostRepository(),
     ) {
     }
 
@@ -226,6 +227,7 @@ final class ProjectRepository
         'auth' => ContentTypes::META_AUTH_PASSWORD,
         'staging' => ContentTypes::META_STAGING_AUTH_PASSWORD,
         'recaptcha' => ContentTypes::META_RECAPTCHA_SECRET,
+        'db' => ContentTypes::META_DB_PASSWORD,
     ];
 
     /**
@@ -638,6 +640,10 @@ final class ProjectRepository
             return $this->invalid(__('Nie ma takiej kategorii.', 'wp-plugin-projects'));
         }
 
+        if (!empty($data['hostId']) && !$this->hosts->exists((int) $data['hostId'])) {
+            return $this->invalid(__('Nie ma takiego konta hostingowego.', 'wp-plugin-projects'));
+        }
+
         if (!empty($data['todoProject']) && !isset($this->todo->projects()[(int) $data['todoProject']])) {
             return $this->invalid(__('Nie ma takiego projektu w Todo.', 'wp-plugin-projects'));
         }
@@ -718,6 +724,15 @@ final class ProjectRepository
             ($definition['format'] ?? '') === 'date' => preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) ? $value : null,
             default => mb_substr($value, 0, $definition['max'] ?? 200),
         };
+    }
+
+    /** @var array<int, array<string, mixed>>|null the accounts by id – once per request */
+    private ?array $hostMap = null;
+
+    /** @return array<int, array<string, mixed>> */
+    private function hostMap(): array
+    {
+        return $this->hostMap ??= array_column($this->hosts->all(), null, 'id');
     }
 
     private function post(int $id): ?WP_Post
@@ -827,6 +842,18 @@ final class ProjectRepository
         $project['hasAuthPassword'] = get_post_meta($post->ID, ContentTypes::META_AUTH_PASSWORD, true) !== '';
         $project['hasStagingAuthPassword'] = get_post_meta($post->ID, ContentTypes::META_STAGING_AUTH_PASSWORD, true) !== '';
         $project['hasRecaptchaSecret'] = get_post_meta($post->ID, ContentTypes::META_RECAPTCHA_SECRET, true) !== '';
+        $project['hasDbPassword'] = get_post_meta($post->ID, ContentTypes::META_DB_PASSWORD, true) !== '';
+
+        // on a hosting account: its hosting, panel and account name – the table, the filters and the search show those
+        $host = $project['hostId'] ? $this->hostMap()[$project['hostId']] ?? null : null;
+
+        if ($host) {
+            $project['server'] = $host['server'];
+            $project['serverUrl'] = $host['serverUrl'];
+            $project['serverAccount'] = $host['serverAccount'];
+        } else {
+            $project['hostId'] = null;
+        }
         $staging = json_decode((string) get_post_meta($post->ID, ContentTypes::META_STAGING, true), true);
         $project['staging'] = is_array($staging) ? $staging : null;
         // the site's other domains as the list last saw them: what they answered, their certificates

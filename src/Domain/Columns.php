@@ -30,7 +30,7 @@ final class Columns
         'status' => ['status', 'down', 'domainChecks'],
         // the home page over 30 days (History)
         'uptime' => ['uptime', 'responseMs'],
-        'server' => ['server', 'serverUrl', 'serverAccount'],
+        'server' => ['server', 'serverUrl', 'serverAccount', 'hostId'],
         // the version, the full one (patched or not); the limits – the tooltip
         'php' => ['php', 'phpVersion', 'phpSapi', 'phpIni'],
         'engine' => ['engine', 'version'],

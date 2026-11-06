@@ -7,6 +7,7 @@ namespace MKProjects;
 use MKProjects\App\AppShell;
 use MKProjects\Cli\SecretsCommand;
 use MKProjects\Domain\CategoryRepository;
+use MKProjects\Domain\HostRepository;
 use MKProjects\Domain\Alerts;
 use MKProjects\Domain\ChangeMarker;
 use MKProjects\Domain\History;
@@ -39,13 +40,17 @@ final class Plugin
     {
         $categories = new CategoryRepository();
         $todo = new TodoBridge();
-        $projects = new ProjectRepository($categories, $todo);
+        $hosts = new HostRepository();
+        $projects = new ProjectRepository($categories, $todo, hosts: $hosts);
 
         History::install();
         (new ContentTypes())->register();
         (new ChangeMarker())->register();
         (new ProjectsController($projects, $todo))->register();
         (new CategoriesController($categories))->register();
+        (new \MKProjects\Rest\HostsController($hosts))->register();
+        // the projects' own hosting fields become accounts – once, after the types are registered
+        add_action('init', [$hosts, 'migrate'], 20);
         (new ColumnsController())->register();
         (new ViewerController())->register();
         (new ReportController($projects))->register();
