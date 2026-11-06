@@ -5,7 +5,7 @@
  * Author: Marcin Kwiatkowski
  * Author URI: https://kwiatkowski.co
  * Text Domain: wp-plugin-projects
- * Version: 2026.11.06.20
+ * Version: 2026.11.06.21
  * Requires PHP: 8.1
  */
 
@@ -15,7 +15,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('WP_PLUGIN_PROJECTS_VERSION', '2026.11.06.20');
+define('WP_PLUGIN_PROJECTS_VERSION', '2026.11.06.21');
 define('WP_PLUGIN_PROJECTS_FILE', __FILE__);
 
 spl_autoload_register(static function (string $class): void {
