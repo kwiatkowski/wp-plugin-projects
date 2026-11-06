@@ -13,7 +13,7 @@ final class Columns
 {
     public const ALL = [
         'name', 'status', 'uptime', 'server', 'php', 'engine', 'theme', 'repo', 'deploy', 'bedrock', 'security',
-        'local', 'stage', 'acf', 'miModal', 'todo', 'forms', 'report',
+        'local', 'stage', 'acf', 'miModal', 'forms', 'todo', 'report',
     ];
 
     /** never for guests – the hosting and its account, the repository, the copies' addresses, Todo, the report */
