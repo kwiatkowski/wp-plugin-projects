@@ -332,7 +332,10 @@ final class Alerts
         $since = time() - WEEK_IN_SECONDS;
         $outages = $this->history->outagesSince($since);
         $latest = \MKProjects\App\AppShell::latestWordpress();
-        $sections = ['down' => [], 'updates' => [], 'vulnerabilities' => [], 'ssl' => [], 'report' => []];
+        $sections = ['down' => [], 'updates' => [], 'vulnerabilities' => [], 'ssl' => [], 'terms' => [], 'report' => []];
+        // the domains and the hosting accounts ending within 30 days – each once, however many projects share it
+        $terms = [];
+        $hosts = array_column((new HostRepository())->all(), null, 'id');
 
         foreach ($this->projects->all('admin') as $project) {
             // the sites being built, the suspended ones and the ones not watched – nor summed up
@@ -390,15 +393,32 @@ final class Alerts
                 }
             }
 
+            foreach ((array) ($project['domainInfo'] ?? []) as $domain) {
+                $expires = !empty($domain['expires']) ? (int) strtotime((string) $domain['expires']) : 0;
+
+                if ($expires && $expires - time() < 30 * DAY_IN_SECONDS) {
+                    $terms['domain:' . $domain['domain']] = ['tone' => $expires < time() ? 'danger' : 'warn', 'name' => $domain['domain'], 'url' => 'https://' . $domain['domain'], 'detail' => sprintf('domena opłacona do %s', wp_date('j.m.Y', $expires))];
+                }
+            }
+
+            $host = $hosts[(int) ($project['hostId'] ?? 0)] ?? null;
+            $paid = $host && !empty($host['paidUntil']) ? (int) strtotime($host['paidUntil'] . ' 23:59:59') : 0;
+
+            if ($paid && $paid - time() < 30 * DAY_IN_SECONDS) {
+                $terms['host:' . $host['id']] = ['tone' => $paid < time() ? 'danger' : 'warn', 'name' => $host['name'], 'url' => self::listUrl(), 'detail' => sprintf('hosting opłacony do %s', wp_date('j.m.Y', $paid))];
+            }
+
             if (!empty($project['token']) && !empty($project['reportedAt']) && time() - (int) strtotime((string) $project['reportedAt']) > DAY_IN_SECONDS) {
                 $sections['report'][] = $item('warn', sprintf('ostatni raport %s', wp_date('j.m.Y H:i', (int) strtotime((string) $project['reportedAt']))));
             }
         }
 
+        $sections['terms'] = array_values($terms);
         $titles = [
             'down' => 'Niedostępność',
             'vulnerabilities' => 'Podatności wtyczek',
             'ssl' => 'Certyfikaty SSL (30 dni)',
+            'terms' => 'Domeny i hosting (30 dni)',
             'updates' => 'Do aktualizacji',
             'report' => 'Brak raportu ponad dobę',
         ];

@@ -726,6 +726,20 @@ final class ProjectRepository
         };
     }
 
+    /** @return string[] every project's domains – the registries are asked about them (DomainChecker) */
+    public function allDomains(): array
+    {
+        $ids = get_posts(['post_type' => ContentTypes::PROJECT, 'post_status' => 'publish', 'numberposts' => -1, 'fields' => 'ids', 'no_found_rows' => true]);
+
+        return array_values(array_unique(array_merge(...array_map(
+            static fn (int $id): array => array_map('strval', (array) get_post_meta($id, Fields::metaKey('domains'), true)),
+            $ids ?: [0],
+        ))));
+    }
+
+    /** @var array<string, array<string, mixed>>|null what the registries said – once per request */
+    private ?array $knownDomains = null;
+
     /** @var array<int, array<string, mixed>>|null the accounts by id – once per request */
     private ?array $hostMap = null;
 
@@ -843,6 +857,8 @@ final class ProjectRepository
         $project['hasStagingAuthPassword'] = get_post_meta($post->ID, ContentTypes::META_STAGING_AUTH_PASSWORD, true) !== '';
         $project['hasRecaptchaSecret'] = get_post_meta($post->ID, ContentTypes::META_RECAPTCHA_SECRET, true) !== '';
         $project['hasDbPassword'] = get_post_meta($post->ID, ContentTypes::META_DB_PASSWORD, true) !== '';
+        // the registered domains: registrar, until when paid (DomainChecker – the owner's only, not in any column)
+        $project['domainInfo'] = DomainChecker::forHosts($project['domains'], $this->knownDomains ??= DomainChecker::known());
 
         // on a hosting account: its hosting, panel and account name – the table, the filters and the search show those
         $host = $project['hostId'] ? $this->hostMap()[$project['hostId']] ?? null : null;

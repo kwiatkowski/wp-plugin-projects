@@ -59,6 +59,8 @@ final class ReportPuller
         $rows = $this->rows($this->run($this->projects->pullTargets(), $ownToken));
         // the plugins just reported against the known vulnerabilities (the API's answers kept half a day)
         $this->vulnerabilities->scan();
+        // the domains' registrars and expiry dates (RDAP) – a few each pull, each once a day
+        (new DomainChecker())->refresh($this->projects->allDomains());
         // what the reports miss a translation of – has it one to install
         (new TranslationPacks())->warm();
         $this->alerts?->run();
