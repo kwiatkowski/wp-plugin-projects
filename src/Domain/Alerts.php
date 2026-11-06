@@ -12,6 +12,7 @@ namespace MKProjects\Domain;
  *  - ssl: the certificate ends within `days` days, or isn't valid
  *  - report: a site with a token sent nothing for `hours` hours
  *  - vulnerability: a new known vulnerability of a plugin (VulnerabilityScanner)
+ *  - forms: a form's send failed (the report's forms – plugin_meden 1.23.0 / MK Core), once per new failure
  *  - the weekly summary: what waits for an update, what was down, what ends, the vulnerabilities
  *
  * Each goes once (what was said is kept in STATE); all of one run go together – one message per channel. A muted
@@ -90,6 +91,22 @@ final class Alerts
             if (!empty($project['stagingUrl'])) {
                 $this->watch($id, 'staging', $project, $rules['staging'], $rules['staging'], $muted, $now, $alerts, $first);
             }
+
+            // the forms: more failed sends than at the last look – the newest error says why
+            $forms = (array) ($project['forms']['items'] ?? []);
+            $failed = array_sum(array_map(static fn ($form): int => (int) ($form['failed'] ?? 0), $forms));
+
+            if ($failed > (int) ($was['formsFailed'] ?? $failed) && !$first && $rules['forms']['enabled'] && !$muted) {
+                $errors = array_filter(array_map(static fn ($form): ?array => is_array($form['lastError'] ?? null) ? $form['lastError'] + ['form' => (string) ($form['title'] ?? '')] : null, $forms));
+                usort($errors, static fn (array $a, array $b): int => strcmp((string) $b['at'], (string) $a['at']));
+                $error = $errors[0] ?? null;
+                $alerts[] = [
+                    'rule' => 'forms', 'id' => $id, 'icon' => '✉️', 'tone' => 'danger', 'what' => (string) $project['name'], 'url' => self::homeUrl($project),
+                    'detail' => '– formularz nie wysłał wiadomości' . ($error ? sprintf(' („%s”: %s)', $error['form'], $error['message']) : ''),
+                ];
+            }
+
+            $now['formsFailed'] = $failed;
 
             // the certificates – the home page's and the other domains': ending soon (by the end date) or not valid (by
             // the error) – each said once
@@ -332,7 +349,7 @@ final class Alerts
         $since = time() - WEEK_IN_SECONDS;
         $outages = $this->history->outagesSince($since);
         $latest = \MKProjects\App\AppShell::latestWordpress();
-        $sections = ['down' => [], 'updates' => [], 'vulnerabilities' => [], 'ssl' => [], 'terms' => [], 'report' => []];
+        $sections = ['down' => [], 'updates' => [], 'vulnerabilities' => [], 'ssl' => [], 'terms' => [], 'forms' => [], 'report' => []];
         // the domains and the hosting accounts ending within 30 days – each once, however many projects share it
         $terms = [];
         $hosts = array_column((new HostRepository())->all(), null, 'id');
@@ -393,6 +410,16 @@ final class Alerts
                 }
             }
 
+            // the forms: failed sends over 30 days, or CF7's own setup errors
+            foreach ((array) ($project['forms']['items'] ?? []) as $form) {
+                $failed = (int) ($form['failed'] ?? 0);
+                $setup = count((array) ($form['configErrors'] ?? []));
+
+                if ($failed > 0 || $setup > 0) {
+                    $sections['forms'][] = $item($failed > 0 ? 'danger' : 'warn', sprintf('„%s” – %s', (string) ($form['title'] ?? ''), $failed > 0 ? sprintf('%d× nie wysłał (30 dni)', $failed) : sprintf('błędy konfiguracji: %d', $setup)));
+                }
+            }
+
             foreach ((array) ($project['domainInfo'] ?? []) as $domain) {
                 $expires = !empty($domain['expires']) ? (int) strtotime((string) $domain['expires']) : 0;
 
@@ -419,6 +446,7 @@ final class Alerts
             'vulnerabilities' => 'Podatności wtyczek',
             'ssl' => 'Certyfikaty SSL (30 dni)',
             'terms' => 'Domeny i hosting (30 dni)',
+            'forms' => 'Formularze',
             'updates' => 'Do aktualizacji',
             'report' => 'Brak raportu ponad dobę',
         ];

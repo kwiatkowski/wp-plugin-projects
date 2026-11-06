@@ -26,6 +26,7 @@ final class AlertSettings
         'ssl' => ['enabled' => true, 'days' => 14, 'channels' => ['email', 'slack']],
         'report' => ['enabled' => true, 'hours' => 24, 'channels' => ['email']],
         'vulnerability' => ['enabled' => true, 'channels' => ['email', 'slack']],
+        'forms' => ['enabled' => true, 'channels' => ['email', 'slack']],
     ];
 
     /** @return array<string, mixed> */

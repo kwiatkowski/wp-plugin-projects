@@ -13,11 +13,11 @@ final class Columns
 {
     public const ALL = [
         'name', 'status', 'uptime', 'server', 'php', 'engine', 'theme', 'repo', 'deploy', 'bedrock', 'security',
-        'local', 'stage', 'acf', 'miModal', 'todo', 'report',
+        'local', 'stage', 'acf', 'miModal', 'todo', 'forms', 'report',
     ];
 
     /** never for guests – the hosting and its account, the repository, the copies' addresses, Todo, the report */
-    public const PRIVATE = ['server', 'repo', 'local', 'stage', 'todo', 'report'];
+    public const PRIVATE = ['server', 'repo', 'local', 'stage', 'todo', 'forms', 'report'];
 
     /** until the owner chooses – the public list as it always was, for both */
     public const DEFAULT = ['name', 'status', 'engine', 'theme'];
@@ -44,6 +44,8 @@ final class Columns
         'acf' => ['acf'],
         'miModal' => ['miModal'],
         'todo' => ['todo'],
+        // the forms: how many, where, their setup, the sends that failed
+        'forms' => ['forms'],
         // the dot and its popup: when, what sent it, what waits, what lies unused, the certificate; `token` only as "there
         // is one"
         'report' => ['reportedAt', 'reporter', 'updates', 'translationUpdates', 'ssl', 'token', 'vulnerabilities', 'missingTranslations', 'sites', 'inactivePlugins', 'inactiveThemes', 'themeUpdates'],
